@@ -194,6 +194,18 @@ function createServer(options = {}) {
     res.json(m.toJSON());
   });
 
+  app.post("/api/mission/:id/requirement", (req, res) => {
+    const id = req.params.id;
+    const body = req.body || {};
+    const resource = body.resource;
+    const count = parseInt(body.count, 10) || 1;
+    if (!resource) return res.status(400).json({ error: "resource required" });
+    if (!store.missions[id]) return res.status(404).json({ error: "not found" });
+    const ok = store.addRequirement(id, resource, count);
+    if (!ok) return res.status(400).json({ error: "could not add requirement" });
+    res.json(store.missions[id].toJSON());
+  });
+
   app.post("/api/mission/:id", (req, res) => {
     const id = req.params.id;
     const body = req.body || {};
