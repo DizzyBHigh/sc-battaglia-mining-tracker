@@ -20,7 +20,7 @@ const PORT = 17845;
 let mainWindow = null;
 let overlayWindow = null;
 let serverHandle = null;
-let overlayClickThrough = true;
+let overlayClickThrough = false; // false = can drag; true = clicks pass to game
 
 function defaultLogCandidates() {
   const home = os.homedir();
@@ -159,6 +159,7 @@ function createOverlayWindow() {
 
   overlayWindow.setAlwaysOnTop(true, "screen-saver");
   overlayWindow.setVisibleOnAllWorkspaces(true, { visibleOnFullScreen: true });
+  if (typeof overlayWindow.setMovable === "function") overlayWindow.setMovable(true);
   setOverlayClickThrough(overlayClickThrough);
 
   overlayWindow.loadURL(`http://127.0.0.1:${PORT}/overlay.html`);
@@ -185,6 +186,8 @@ function toggleOverlay() {
 }
 
 function setOverlayClickThrough(enabled) {
+  // enabled=true  → mouse passes through to game (cannot drag overlay)
+  // enabled=false → overlay receives mouse (can drag)
   overlayClickThrough = !!enabled;
   if (overlayWindow && !overlayWindow.isDestroyed()) {
     if (overlayClickThrough) {
@@ -255,10 +258,6 @@ function startBackend() {
     !!(overlayWindow && !overlayWindow.isDestroyed() && overlayWindow.isVisible())
   );
 
-  /**
-   * Capture screen as PNG data URL for OCR.
-   * Always takes a fresh thumbnail; hides overlay during capture.
-   */
   ipcMain.handle("capture-screen", async (_e, options = {}) => {
     const maxWidth = options.maxWidth || 1920;
     const maxHeight = options.maxHeight || 1080;
