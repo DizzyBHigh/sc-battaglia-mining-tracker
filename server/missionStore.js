@@ -9,6 +9,12 @@ const COMMON_RESOURCES = [
   "Agricium", "Hephaestanite",
 ];
 
+/** Battaglia ore-scan style missions only (title keywords) */
+function isMiningScanTitle(title) {
+  const s = String(title || "").toLowerCase();
+  return /mining|scan|ore/.test(s);
+}
+
 class Mission {
   constructor(data = {}) {
     this.mission_id = data.mission_id || "";
@@ -24,25 +30,29 @@ class Mission {
 
   remaining() {
     const out = {};
-    for (const [r, needed] of Object.entries(this.requirements)) {
-      out[r] = Math.max(0, needed - (this.progress[r] || 0));
+    for (const [r, need] of Object.entries(this.requirements || {})) {
+      const have = this.progress[r] || 0;
+      const left = Math.max(0, need - have);
+      if (left > 0) out[r] = left;
     }
     return out;
   }
 
   isFullyComplete() {
-    const keys = Object.keys(this.requirements);
+    const keys = Object.keys(this.requirements || {});
     if (!keys.length) return false;
-    return keys.every((r) => (this.progress[r] || 0) >= this.requirements[r]);
+    return keys.every((r) => (this.progress[r] || 0) >= (this.requirements[r] || 0));
   }
 
   applyScan(resource, count = 1) {
-    if (!(resource in this.requirements)) return 0;
-    const needed = this.requirements[resource];
-    const current = this.progress[resource] || 0;
-    if (current >= needed) return 0;
-    const applied = Math.min(count, needed - current);
-    this.progress[resource] = current + applied;
+    if (!resource || this.status !== "active") return 0;
+    const need = this.requirements[resource];
+    if (need == null) return 0;
+    const have = this.progress[resource] || 0;
+    const room = Math.max(0, need - have);
+    const applied = Math.min(room, Math.max(0, count));
+    if (applied <= 0) return 0;
+    this.progress[resource] = have + applied;
     if (this.isFullyComplete() && this.status === "active") {
       this.status = "completed";
       this.completed_at = new Date().toISOString();
@@ -62,7 +72,6 @@ class Mission {
       notes: this.notes,
       completed_at: this.completed_at,
       remaining: this.remaining(),
-      fully_complete: this.isFullyComplete(),
     };
   }
 }
@@ -147,10 +156,6 @@ class MissionStore {
     return true;
   }
 
-  /**
-   * Apply absolute progress from OCR (e.g. Aluminium scanned 1 of 2).
-   * Also merges requirements if provided.
-   */
   applyOcrState(missionId, requirements, progress) {
     const m = this.missions[missionId];
     if (!m) return false;
@@ -160,15 +165,12 @@ class MissionStore {
         const n = parseInt(v, 10);
         if (n > 0) cleaned[k] = n;
       }
-      // merge – don't wipe existing if OCR partial
       m.requirements = { ...m.requirements, ...cleaned };
     }
     if (progress && Object.keys(progress).length) {
       for (const [k, v] of Object.entries(progress)) {
         const n = parseInt(v, 10);
-        if (!Number.isNaN(n) && n >= 0) {
-          m.progress[k] = n;
-        }
+        if (!Number.isNaN(n) && n >= 0) m.progress[k] = n;
       }
     }
     for (const r of Object.keys(m.requirements)) {
@@ -187,6 +189,7 @@ class MissionStore {
     const newlyCompleted = [];
     for (const [mid, m] of Object.entries(this.missions)) {
       if (m.status !== "active") continue;
+      if (!isMiningScanTitle(m.title)) continue;
       const n = m.applyScan(resource, count);
       if (n > 0) {
         applied[mid] = n;
@@ -235,6 +238,10 @@ class MissionStore {
     return Object.values(this.missions).filter((m) => m.status === "active");
   }
 
+  activeScanMissions() {
+    return this.activeMissions().filter((m) => isMiningScanTitle(m.title));
+  }
+
   allMissions() {
     return Object.values(this.missions).sort(
       (a, b) => (b.accepted_at || "").localeCompare(a.accepted_at || "")
@@ -242,4 +249,4 @@ class MissionStore {
   }
 }
 
-module.exports = { MissionStore, Mission, COMMON_RESOURCES };
+module.exports = { MissionStore, Mission, COMMON_RESOURCES, isMiningScanTitle };

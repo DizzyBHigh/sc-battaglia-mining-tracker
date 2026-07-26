@@ -46,7 +46,7 @@
       display: inline-flex;
       flex-wrap: wrap;
       align-items: center;
-      gap: 0.25rem 0.45rem;
+      gap: 0.2rem 0.35rem;
       padding: 0.2rem 0.55rem;
       border-radius: 999px;
       background: rgba(22, 27, 34, 0.95);
@@ -54,44 +54,23 @@
       font-size: clamp(0.7rem, 1.8vw, 0.9rem);
       color: #e6edf3;
       max-width: 100%;
+      font-weight: 600;
     }
     .chip.done { opacity: 0.55; border-color: #238636; }
-    .chip .name { font-weight: 600; }
-    .chip .sig {
-      font-weight: 600;
-      font-variant-numeric: tabular-nums;
-      color: #58a6ff;
-      white-space: nowrap;
-      font-size: clamp(0.65rem, 1.6vw, 0.85rem);
-      display: inline-flex;
-      flex-wrap: wrap;
-      align-items: center;
-      gap: 0.15rem 0.2rem;
-      max-width: min(70vw, 28rem);
-    }
-    .chip .sig-part {
-      color: #58a6ff;
-      font-weight: 700;
-    }
-    .chip .sig-sep {
-      color: rgba(139, 148, 158, 0.7);
-      margin: 0 0.1rem;
-      font-weight: 400;
-    }
     .chip .count {
       font-weight: 800;
       font-variant-numeric: tabular-nums;
       color: #d29922;
     }
     .chip .count.zero { color: #3fb950; }
-    .empty { color: #8b949e; font-size: 0.8rem; }
-    .drag-handle {
-      -webkit-app-region: drag;
-      cursor: move;
-      color: #8b949e;
-      font-size: 0.7rem;
-      padding: 0 0.3rem;
+    .chip .sig {
+      font-weight: 600;
+      font-variant-numeric: tabular-nums;
+      color: #58a6ff;
+      white-space: nowrap;
+      font-size: clamp(0.65rem, 1.6vw, 0.85rem);
     }
+    .empty { color: #8b949e; font-size: 0.8rem; }
   </style>
 </head>
 <body>
@@ -135,22 +114,16 @@
           let clusterList = Array.isArray(d.signatures) && d.signatures.length
             ? d.signatures
             : (base != null ? [base, base * 2, base * 3, base * 4, base * 5] : []);
-          const parts = clusterList.map((v, i) => {
-            const rocks = i + 1;
-            return `<span class="sig-part" title="${rocks} rock cluster">x${rocks} ${v}</span>`;
-          });
-          const sigHtml = parts.length
-            ? `<span class="sig">${parts.join('<span class="sig-sep">·</span>')}</span>`
-            : "";
+          // Format: Aluminium 7 (4285 · 8570 · 12855 · 17140 · 21425)
+          const sigNums = clusterList.join(" · ");
+          const label = sigNums
+            ? `${escapeHtml(k)} <span class="count ${n === 0 ? "zero" : ""}">${n}</span> <span class="sig">(${sigNums})</span>`
+            : `${escapeHtml(k)} <span class="count ${n === 0 ? "zero" : ""}">${n}</span>`;
           const tip = clusterList.length
             ? clusterList.map((v, i) => "x" + (i + 1) + "=" + v).join("  ")
             : "";
           const done = n === 0;
-          return `<div class="chip ${done ? "done" : ""}" title="${escapeHtml(k)}${tip ? " · " + tip : ""}">
-            <span class="name">${escapeHtml(k)}</span>
-            ${sigHtml}
-            <span class="count ${done ? "zero" : ""}">${n}</span>
-          </div>`;
+          return `<div class="chip ${done ? "done" : ""}" title="${escapeHtml(k)} left ${n}${tip ? " · " + tip : ""}">${label}</div>`;
         }).join("");
       } catch (e) {
         document.getElementById("list").innerHTML =
