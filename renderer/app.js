@@ -7,7 +7,9 @@ var autoOcrAttempted = new Set();
 var tesseractWorker = null;
 
 function isMiningScanTitle(title) {
-  return /mining|scan|ore|gathering/i.test(String(title || ""));
+  var t = String(title || "");
+  if (/ocr|screen/i.test(t)) return true;
+  return /mining|scan|ore|gathering/i.test(t);
 }
 
 async function pushStatus(message, phase) {
@@ -138,7 +140,10 @@ async function loadMissions() {
 function renderMissions() {
   var list = document.getElementById("mission-list");
   var items = missionsCache;
-  items = items.filter(function (m) { return isMiningScanTitle(m.title); });
+  items = items.filter(function (m) {
+    if (isMiningScanTitle(m.title)) return true;
+    return m.requirements && Object.keys(m.requirements).length > 0;
+  });
   if (currentFilter === "active") items = items.filter(function (m) { return m.status === "active"; });
   if (currentFilter === "completed") items = items.filter(function (m) { return m.status === "completed"; });
   if (!items.length) {
@@ -469,9 +474,17 @@ async function autoOcrForMission(missionId, force) {
     }
     await pushStatus("Performing OCR - please leave the contract screen open.", "ocr");
     if (!force) await new Promise(function (r) { setTimeout(r, 800); });
+    var maxW = 3840, maxH = 2160;
+    try {
+      if (window.screen && screen.width) {
+        maxW = Math.max(1920, Math.min(3840, screen.width));
+        maxH = Math.max(1080, Math.min(2160, screen.height));
+      }
+    } catch (_) {}
     var cap = await window.electronAPI.captureScreen({
-      maxWidth: 1920, maxHeight: 1080,
-      crop: { x: 0.28, y: 0.1, width: 0.7, height: 0.75 },
+      maxWidth: maxW,
+      maxHeight: maxH,
+      crop: { x: 0.22, y: 0.08, width: 0.72, height: 0.78 },
       _bust: Date.now(),
     });
     if (!cap || !cap.dataUrl) throw new Error("Screen capture returned no image");
