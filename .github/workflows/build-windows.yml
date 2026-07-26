@@ -27,10 +27,26 @@ jobs:
       - name: Install dependencies
         run: npm install
 
-      - name: Build (electron-builder)
-        run: npm run dist
+      - name: Build (electron-builder) with retries
+        shell: pwsh
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          $max = 3
+          for ($i = 1; $i -le $max; $i++) {
+            Write-Host "Build attempt $i of $max..."
+            npm run dist
+            if ($LASTEXITCODE -eq 0) {
+              Write-Host "Build succeeded"
+              exit 0
+            }
+            Write-Host "Build failed with exit $LASTEXITCODE"
+            if ($i -lt $max) {
+              Write-Host "Waiting 30s before retry..."
+              Start-Sleep -Seconds 30
+            }
+          }
+          exit 1
 
       - name: Upload dist artifacts
         uses: actions/upload-artifact@v4
