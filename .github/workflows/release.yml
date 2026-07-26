@@ -1,0 +1,116 @@
+name: Release
+
+on:
+  workflow_dispatch:
+  push:
+    branches: [main]
+    paths:
+      - "package.json"
+      - "main.js"
+      "preload.js"
+      - "server/**"
+      - "renderer/**"
+      - ".github/workflows/release.yml"
+
+permissions:
+  contents: write
+
+jobs:
+  release:
+    name: Build, tag & release
+    runs-on: windows-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: "24"
+
+      - name: Read version from package.json
+        id: ver
+        shell: pwsh
+        run: |
+          $pkg = Get-Content package.json -Raw | ConvertFrom-Json
+          $version = $pkg.version
+          $tag = "v$version"
+          echo "version=$version" >> $env:GITHUB_OUTPUT
+          echo "tag=$tag" >> $env:GITHUB_OUTPUT
+          Write-Host "Version: $version  Tag: $tag"
+
+      - name: Check if tag already exists
+        id: tagcheck
+        shell: bash
+        run: |
+          if git rev-parse "${{ steps.ver.outputs.tag }}" >/dev/null 2>&1; then
+            echo "exists=true" >> "$GITHUB_OUTPUT"
+            echo "Tag ${{ steps.ver.outputs.tag }} already exists — skipping release"
+          else
+            echo "exists=false" >> "$GITHUB_OUTPUT"
+            echo "Tag ${{ steps.ver.outputs.tag }} is new — will build and release"
+          fi
+
+      - name: Install dependencies
+        if: steps.tagcheck.outputs.exists == 'false'
+        run: npm install
+
+      - name: Build (electron-builder) with retries
+        if: steps.tagcheck.outputs.exists == 'false'
+        shell: pwsh
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          $max = 3
+          for ($i = 1; $i -le $max; $i++) {
+            Write-Host "Build attempt $i of $max..."
+            npm run dist
+            if ($LASTEXITCODE -eq 0) {
+              Write-Host "Build succeeded"
+              exit 0
+            }
+            Write-Host "Build failed with exit $LASTEXITCODE"
+            if ($i -lt $max) {
+              Start-Sleep -Seconds 30
+            }
+          }
+          exit 1
+
+      - name: List dist outputs
+        if: steps.tagcheck.outputs.exists == 'false'
+        shell: pwsh
+        run: Get-ChildItem -Recurse dist | Select-Object FullName, Length
+
+      - name: Upload build artifact
+        if: steps.tagcheck.outputs.exists == 'false'
+        uses: actions/upload-artifact@v4
+        with:
+          name: sc-battaglia-mining-tracker-${{ steps.ver.outputs.version }}
+          path: |
+            dist/*.exe
+            dist/*.yml
+            dist/latest*.yml
+          if-no-files-found: error
+
+      - name: Create tag and GitHub Release
+        if: steps.tagcheck.outputs.exists == 'false'
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: ${{ steps.ver.outputs.tag }}
+          name: SC Battaglia Mining Tracker ${{ steps.ver.outputs.tag }}
+          body: |
+            ## SC Battaglia Mining Tracker ${{ steps.ver.outputs.tag }}
+
+            ### Downloads
+            - **Setup (NSIS installer):** `sc-battaglia-mining-tracker-${{ steps.ver.outputs.version }}-setup.exe`
+            - **Portable:** `sc-battaglia-mining-tracker-${{ steps.ver.outputs.version }}-portable.exe`
+
+            Built automatically from `main`.
+          files: |
+            dist/*.exe
+          fail_on_unmatched_files: false
+          generate_release_notes: true
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}

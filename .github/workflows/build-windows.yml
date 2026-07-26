@@ -48,10 +48,17 @@ jobs:
           }
           exit 1
 
+      - name: Read version
+        id: ver
+        shell: pwsh
+        run: |
+          $pkg = Get-Content package.json -Raw | ConvertFrom-Json
+          echo "version=$($pkg.version)" >> $env:GITHUB_OUTPUT
+
       - name: Upload dist artifacts
         uses: actions/upload-artifact@v4
         with:
-          name: windows-build
+          name: sc-battaglia-mining-tracker-${{ steps.ver.outputs.version }}
           path: |
             dist/*.exe
             dist/*.yml
