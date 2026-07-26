@@ -16,10 +16,9 @@ function createServer(options = {}) {
 
   const store = new MissionStore(dataPath);
   const recentCompletes = [];
-  // Overlay / UI status line (OCR progress etc.)
   let appStatus = {
     message: "Ready",
-    phase: "idle", // idle | ocr | ocr_done | error
+    phase: "idle",
     updatedAt: new Date().toISOString(),
   };
   function setAppStatus(message, phase = "idle") {
@@ -102,11 +101,31 @@ function createServer(options = {}) {
 
   if (logPath) startWatching(logPath);
 
-  // ---------- API ----------
   app.get("/api/missions", (req, res) => {
     const activeOnly = req.query.active === "1";
     const list = activeOnly ? store.activeMissions() : store.allMissions();
     res.json(list.map((m) => m.toJSON()));
+  });
+
+  app.post("/api/missions/manual", (req, res) => {
+    const crypto = require("crypto");
+    const body = req.body || {};
+    const id = body.mission_id || crypto.randomUUID();
+    const title =
+      (body.title && String(body.title).trim()) ||
+      "Manual Ore Scan (screen OCR)";
+    const m = store.addOrUpdateMission(
+      id,
+      title,
+      body.accepted_at || new Date().toISOString()
+    );
+    if (body.requirements && typeof body.requirements === "object") {
+      store.setRequirements(id, body.requirements);
+    }
+    if (body.progress && store.applyOcrState) {
+      store.applyOcrState(id, body.requirements || null, body.progress);
+    }
+    res.json(store.missions[id].toJSON());
   });
 
   app.get("/api/mission/:id", (req, res) => {
