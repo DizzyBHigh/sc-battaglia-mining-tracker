@@ -1,4 +1,27 @@
 /* Re-OCR = always re-capture screen, then OCR. New contract from screen. */
+
+/** Capture settings that scale with display resolution (1080p / 1440p / 4K) */
+function getCaptureOptions(fullFrame) {
+  var maxW = 3840;
+  var maxH = 2160;
+  try {
+    if (window.screen && screen.width) {
+      maxW = Math.max(1920, Math.min(3840, screen.width));
+      maxH = Math.max(1080, Math.min(2160, screen.height));
+    }
+  } catch (_) {}
+  var opts = {
+    maxWidth: maxW,
+    maxHeight: maxH,
+    _bust: Date.now(),
+  };
+  if (!fullFrame) {
+    // Fractional crop of contract DETAILS (right-center) — resolution independent
+    opts.crop = { x: 0.22, y: 0.08, width: 0.72, height: 0.78 };
+  }
+  return opts;
+}
+
 (function () {
   async function recaptureAndOcr(missionId, label) {
     const box = document.getElementById("ocr-result");
@@ -39,13 +62,7 @@
       }
       if (typeof toast === "function") toast(tag + ": capturing screen…");
 
-      const cap = await window.electronAPI.captureScreen({
-        maxWidth: 1920,
-        maxHeight: 1080,
-        crop: { x: 0.28, y: 0.1, width: 0.7, height: 0.75 },
-        _bust: Date.now(),
-      });
-
+      let cap = await window.electronAPI.captureScreen(getCaptureOptions(false));
       if (!cap || !cap.dataUrl) {
         throw new Error("Screen capture returned no image");
       }
@@ -59,11 +76,9 @@
       }
 
       const worker = await getTesseractWorker();
-      const {
-        data: { text },
-      } = await worker.recognize(cap.dataUrl);
+      let text = (await worker.recognize(cap.dataUrl)).data.text;
 
-      const r = await fetch("/api/ocr/parse", {
+      let r = await fetch("/api/ocr/parse", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
@@ -72,16 +87,36 @@
           apply_progress: true,
         }),
       });
-      const data = await r.json();
+      let data = await r.json();
+      let reqs = data.requirements || {};
+      let keys = Object.keys(reqs);
+
+      if (!keys.length) {
+        if (prog) prog.textContent = tag + ": retrying full screen…";
+        cap = await window.electronAPI.captureScreen(getCaptureOptions(true));
+        if (cap && cap.dataUrl) {
+          text = (await worker.recognize(cap.dataUrl)).data.text;
+          r = await fetch("/api/ocr/parse", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({
+              text,
+              mission_id: missionId,
+              apply_progress: true,
+            }),
+          });
+          data = await r.json();
+          reqs = data.requirements || {};
+          keys = Object.keys(reqs);
+        }
+      }
+
       if (prog) prog.style.display = "none";
 
-      const reqs = data.requirements || {};
-      const keys = Object.keys(reqs);
       if (!keys.length) {
         if (box) {
           box.textContent =
-            tag +
-            " found no requirements. Keep DETAILS open and try again.";
+            tag + " found no requirements. Keep DETAILS open and try again.";
           box.style.color = "var(--orange)";
         }
         if (typeof pushStatus === "function") {
@@ -176,27 +211,39 @@
           "Capturing screen — leave the contract DETAILS panel open.",
           "ocr"
         );
-      const cap = await window.electronAPI.captureScreen({
-        maxWidth: 1920,
-        maxHeight: 1080,
-        crop: { x: 0.28, y: 0.1, width: 0.7, height: 0.75 },
-        _bust: Date.now(),
-      });
+
+      let cap = await window.electronAPI.captureScreen(getCaptureOptions(false));
       if (!cap || !cap.dataUrl) throw new Error("Screen capture returned no image");
       if (prog) prog.textContent = "New contract: recognizing text…";
       const worker = await getTesseractWorker();
-      const {
-        data: { text },
-      } = await worker.recognize(cap.dataUrl);
-      const parseRes = await fetch("/api/ocr/parse", {
+      let text = (await worker.recognize(cap.dataUrl)).data.text;
+      let parseRes = await fetch("/api/ocr/parse", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ text }),
       });
-      const parsed = await parseRes.json();
-      const reqs = parsed.requirements || {};
-      const progress = parsed.progress || {};
-      const keys = Object.keys(reqs);
+      let parsed = await parseRes.json();
+      let reqs = parsed.requirements || {};
+      let progress = parsed.progress || {};
+      let keys = Object.keys(reqs);
+
+      if (!keys.length) {
+        if (prog) prog.textContent = "Retrying full-screen capture…";
+        cap = await window.electronAPI.captureScreen(getCaptureOptions(true));
+        if (cap && cap.dataUrl) {
+          text = (await worker.recognize(cap.dataUrl)).data.text;
+          parseRes = await fetch("/api/ocr/parse", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ text }),
+          });
+          parsed = await parseRes.json();
+          reqs = parsed.requirements || {};
+          progress = parsed.progress || {};
+          keys = Object.keys(reqs);
+        }
+      }
+
       if (!keys.length) {
         if (prog) prog.style.display = "none";
         if (box) {
@@ -207,12 +254,13 @@
         if (typeof toast === "function") toast("No contract data found on screen");
         return;
       }
+
       const titleBits = keys.map((k) => reqs[k] + "× " + k).join(", ");
       const createRes = await fetch("/api/missions/manual", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
-          title: "Screen OCR: " + titleBits,
+          title: "Ore Scan (screen): " + titleBits,
           requirements: reqs,
           progress,
         }),
@@ -250,4 +298,5 @@
   };
 
   window.recaptureAndOcr = recaptureAndOcr;
+  window.getCaptureOptions = getCaptureOptions;
 })();
