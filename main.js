@@ -74,7 +74,6 @@ function saveAppConfig(patch) {
   }
 }
 
-/** Prefer saved path if it still exists, else auto-detect */
 function resolveLogPath() {
   const cfg = loadAppConfig();
   if (cfg.logPath) {
@@ -128,7 +127,6 @@ function createOverlayWindow() {
 
   const display = screen.getPrimaryDisplay();
   const { width, height, x: wx, y: wy } = display.workArea;
-  // Default: horizontal bar along the bottom of the primary work area
   const barW = Math.min(Math.max(720, Math.floor(width * 0.7)), width - 24);
   const barH = 88;
   const barX = wx + Math.floor((width - barW) / 2);
@@ -187,8 +185,6 @@ function toggleOverlay() {
 }
 
 function setOverlayClickThrough(enabled) {
-  // enabled=true  → mouse passes through to game (cannot drag overlay)
-  // enabled=false → overlay receives mouse (can drag)
   overlayClickThrough = !!enabled;
   if (overlayWindow && !overlayWindow.isDestroyed()) {
     if (overlayClickThrough) {
@@ -260,57 +256,71 @@ function startBackend() {
   );
 
   /**
-   * Capture primary screen (or given display) as PNG data URL for live OCR.
-   * options: { maxWidth, maxHeight, displayId }
+   * Capture screen as PNG data URL for OCR.
+   * Always takes a fresh thumbnail; hides overlay during capture.
    */
   ipcMain.handle("capture-screen", async (_e, options = {}) => {
-    const maxWidth = options.maxWidth || 1600;
-    const maxHeight = options.maxHeight || 900;
-    const sources = await desktopCapturer.getSources({
-      types: ["screen"],
-      thumbnailSize: { width: maxWidth, height: maxHeight },
-    });
-    if (!sources.length) {
-      throw new Error("No screen sources available");
+    const maxWidth = options.maxWidth || 1920;
+    const maxHeight = options.maxHeight || 1080;
+
+    let overlayWasVisible = false;
+    if (overlayWindow && !overlayWindow.isDestroyed() && overlayWindow.isVisible()) {
+      overlayWasVisible = true;
+      overlayWindow.hide();
+      await new Promise((r) => setTimeout(r, 120));
     }
-    // Prefer primary display match
-    let source = sources[0];
-    const primary = screen.getPrimaryDisplay();
-    const match = sources.find(
-      (s) =>
-        s.display_id &&
-        String(s.display_id) === String(primary.id)
-    );
-    if (match) source = match;
-    if (options.displayId) {
-      const byId = sources.find(
-        (s) => String(s.display_id) === String(options.displayId)
+
+    try {
+      const sources = await desktopCapturer.getSources({
+        types: ["screen"],
+        thumbnailSize: { width: maxWidth, height: maxHeight },
+        fetchWindowIcons: false,
+      });
+      if (!sources.length) {
+        throw new Error("No screen sources available");
+      }
+      let source = sources[0];
+      const primary = screen.getPrimaryDisplay();
+      const match = sources.find(
+        (s) =>
+          s.display_id &&
+          String(s.display_id) === String(primary.id)
       );
-      if (byId) source = byId;
-    }
-    const img = source.thumbnail;
-    if (!img || img.isEmpty()) {
-      throw new Error("Empty screen thumbnail – try increasing capture size");
-    }
-    // Optional crop: { x, y, width, height } in thumbnail coordinates 0-1 relative
-    let out = img;
-    if (options.crop && options.crop.width > 0) {
-      const size = img.getSize();
-      const c = options.crop;
-      const x = Math.max(0, Math.floor((c.x || 0) * size.width));
-      const y = Math.max(0, Math.floor((c.y || 0) * size.height));
-      const w = Math.min(size.width - x, Math.floor((c.width || 1) * size.width));
-      const h = Math.min(size.height - y, Math.floor((c.height || 1) * size.height));
-      if (w > 10 && h > 10) {
-        out = img.crop({ x, y, width: w, height: h });
+      if (match) source = match;
+      if (options.displayId) {
+        const byId = sources.find(
+          (s) => String(s.display_id) === String(options.displayId)
+        );
+        if (byId) source = byId;
+      }
+      const img = source.thumbnail;
+      if (!img || img.isEmpty()) {
+        throw new Error("Empty screen thumbnail – try increasing capture size");
+      }
+      let out = img;
+      if (options.crop && options.crop.width > 0) {
+        const size = img.getSize();
+        const c = options.crop;
+        const x = Math.max(0, Math.floor((c.x || 0) * size.width));
+        const y = Math.max(0, Math.floor((c.y || 0) * size.height));
+        const w = Math.min(size.width - x, Math.floor((c.width || 1) * size.width));
+        const h = Math.min(size.height - y, Math.floor((c.height || 1) * size.height));
+        if (w > 10 && h > 10) {
+          out = img.crop({ x, y, width: w, height: h });
+        }
+      }
+      return {
+        dataUrl: out.toDataURL(),
+        width: out.getSize().width,
+        height: out.getSize().height,
+        sourceName: source.name,
+        capturedAt: Date.now(),
+      };
+    } finally {
+      if (overlayWasVisible && overlayWindow && !overlayWindow.isDestroyed()) {
+        overlayWindow.showInactive();
       }
     }
-    return {
-      dataUrl: out.toDataURL(),
-      width: out.getSize().width,
-      height: out.getSize().height,
-      sourceName: source.name,
-    };
   });
 }
 
@@ -318,7 +328,6 @@ app.whenReady().then(() => {
   startBackend();
   createMainWindow();
 
-  // Global hotkeys (work even when game is focused, if OS allows)
   try {
     globalShortcut.register("CommandOrControl+Shift+O", () => {
       const vis = toggleOverlay();
