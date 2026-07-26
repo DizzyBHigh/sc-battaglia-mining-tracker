@@ -39,5 +39,8 @@
       "oneClick": false,
       "allowToChangeInstallationDirectory": true
     }
+  },
+  "engines": {
+    "node": ">=22"
   }
 }
