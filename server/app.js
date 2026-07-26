@@ -22,6 +22,9 @@ function createServer(options = {}) {
 
   const store = new MissionStore(dataPath);
   const recentCompletes = [];
+  const actedLog = [];
+  const ACTED_LOG_MAX = 200;
+
   let appStatus = {
     message: "Ready",
     phase: "idle",
@@ -35,6 +38,23 @@ function createServer(options = {}) {
     };
   }
 
+  function pushActed(ev, action, detail) {
+    const entry = {
+      id: actedLog.length + 1,
+      timestamp: ev.timestamp || new Date().toISOString(),
+      kind: ev.kind,
+      action: action || ev.kind,
+      mission_id: ev.mission_id || null,
+      objective_id: ev.objective_id || null,
+      title: ev.title || null,
+      detail: detail || null,
+      raw: (ev.raw || "").slice(0, 280),
+    };
+    actedLog.push(entry);
+    if (actedLog.length > ACTED_LOG_MAX) actedLog.splice(0, actedLog.length - ACTED_LOG_MAX);
+    return entry;
+  }
+
   const app = express();
 
   app.use(express.json({ limit: "2mb" }));
@@ -42,8 +62,8 @@ function createServer(options = {}) {
 
   function onLogEvent(ev) {
     if (ev.kind === "accept") {
-      // Title must match mining/scan/ore so the card is visible and auto-OCR runs
       store.addOrUpdateMission(ev.mission_id, "Ore Scan (accepted)", ev.timestamp);
+      pushActed(ev, "ACCEPT", "Created mission card Ore Scan (accepted)");
       console.log(`[log] ACCEPT  ${ev.mission_id.slice(0, 8)}…`);
     } else if (ev.kind === "contract") {
       store.addOrUpdateMission(
@@ -51,6 +71,7 @@ function createServer(options = {}) {
         ev.title || "Ore Scan",
         ev.timestamp
       );
+      pushActed(ev, "CONTRACT", "Title → " + (ev.title || "Ore Scan"));
       console.log(`[log] CONTRACT ${ev.mission_id.slice(0, 8)}… → ${ev.title}`);
     } else if (ev.kind === "objective") {
       const existing = store.missions[ev.mission_id];
@@ -59,6 +80,11 @@ function createServer(options = {}) {
         existing ? existing.title : "Ore Scan",
         ev.timestamp,
         ev.objective_id
+      );
+      pushActed(
+        ev,
+        "OBJECTIVE",
+        (ev.label || "objective") + " " + (ev.state || "INPROGRESS")
       );
     } else if (ev.kind === "objective_complete") {
       store.markObjectiveComplete(ev.mission_id, ev.objective_id || "");
@@ -72,7 +98,34 @@ function createServer(options = {}) {
         title,
       });
       if (recentCompletes.length > 100) recentCompletes.splice(0, 50);
+      pushActed(ev, "OBJ COMPLETE", (ev.label || "objective") + " completed");
       console.log(`[log] OBJECTIVE COMPLETE ${ev.mission_id.slice(0, 8)}…`);
+    } else if (ev.kind === "mission_ended") {
+      const mid = ev.mission_id;
+      const completed = /COMPLETED/i.test(ev.state || "");
+      if (completed && store.missions[mid]) {
+        store.setStatus(mid, "completed");
+        pushActed(ev, "MISSION ENDED", "Auto-completed (MissionEnded)");
+        console.log(`[log] MISSION ENDED ${mid.slice(0, 8)}… → completed`);
+      } else if (completed) {
+        pushActed(ev, "MISSION ENDED", "Completed (mission not tracked)");
+        console.log(`[log] MISSION ENDED ${mid.slice(0, 8)}… (not in store)`);
+      } else {
+        pushActed(ev, "MISSION ENDED", "State " + (ev.state || "?"));
+      }
+    } else if (ev.kind === "contract_complete") {
+      const mid = ev.mission_id;
+      if (store.missions[mid]) {
+        if (ev.title && store.missions[mid].title !== ev.title) {
+          store.missions[mid].title = ev.title;
+        }
+        store.setStatus(mid, "completed");
+        pushActed(ev, "CONTRACT COMPLETE", "Auto-completed: " + (ev.title || ""));
+        console.log(`[log] CONTRACT COMPLETE ${mid.slice(0, 8)}… → ${ev.title}`);
+      } else {
+        pushActed(ev, "CONTRACT COMPLETE", "Not tracked: " + (ev.title || ""));
+        console.log(`[log] CONTRACT COMPLETE ${mid.slice(0, 8)}… (not in store)`);
+      }
     }
   }
 
@@ -168,6 +221,16 @@ function createServer(options = {}) {
 
   app.get("/api/history", (_req, res) => {
     res.json(store.scan_history.slice(-50));
+  });
+
+  app.get("/api/log-events", (req, res) => {
+    const limit = Math.min(200, parseInt(req.query.limit, 10) || 100);
+    res.json(actedLog.slice(-limit).reverse());
+  });
+
+  app.post("/api/log-events/clear", (_req, res) => {
+    actedLog.length = 0;
+    res.json({ ok: true });
   });
 
   app.get("/api/resources", (_req, res) => {
