@@ -60,11 +60,15 @@ function normalizeResource(name) {
   return RESOURCE_ALIASES[key] || null;
 }
 
+/**
+ * Parse OCR text into requirements and optional progress counters.
+ * @returns {{ requirements: Object<string,number>, progress: Object<string,number> }}
+ */
 function parseRequirements(text) {
   text = String(text || "")
     .replace(/\r/g, "\n")
-    .replace(/[\u2018\u2019]/g, "'")
-    .replace(/\u2013/g, "-");
+    .replace(/[‘’]/g, "'")
+    .replace(/–/g, "-");
   const flat = text.replace(/\s+/g, " ");
 
   const found = {};
@@ -85,17 +89,20 @@ function parseRequirements(text) {
 
   let m;
 
+  // "N of Resource (RS xxxx)"
   const reA =
     /(\d+)\s+of\s+(?:[^\w]{0,20})?([A-Za-z]{3,20})\s*\(RS\s*(\d+)\)/gi;
   while ((m = reA.exec(flat))) {
     setReq(normalizeResource(m[2]) || RS_TO_RESOURCE[m[3]], parseInt(m[1], 10));
   }
 
+  // "N of Resource"
   const reB = /(\d+)\s+of\s+([A-Za-z]{3,20})\b/gi;
   while ((m = reB.exec(flat))) {
     setReq(normalizeResource(m[2]), parseInt(m[1], 10));
   }
 
+  // "Resource (RS xxxx) Asteroids: 1/2"  → progress + required
   const reC =
     /([A-Za-z]{3,20})\s*\(RS\s*(\d+)\)\s*Asteroids?\s*[:.]?\s*(\d+)\s*\/\s*(\d+)/gi;
   while ((m = reC.exec(flat))) {
@@ -103,6 +110,7 @@ function parseRequirements(text) {
     setProg(res, parseInt(m[3], 10), parseInt(m[4], 10));
   }
 
+  // "Resource (RS xxxx) Asteroids: 2" (total only)
   const reC2 =
     /([A-Za-z]{3,20})\s*\(RS\s*(\d+)\)\s*Asteroids?\s*[:.]?\s*(\d+)\b(?!\s*\/)/gi;
   while ((m = reC2.exec(flat))) {
@@ -112,12 +120,14 @@ function parseRequirements(text) {
     );
   }
 
+  // RS + fraction
   const reD = /RS\s*(\d{4}).{0,50}?(\d+)\s*\/\s*(\d+)/gi;
   while ((m = reD.exec(flat))) {
     const res = RS_TO_RESOURCE[m[1]];
     setProg(res, parseInt(m[2], 10), parseInt(m[3], 10));
   }
 
+  // deposit fallback
   const depositIdx = flat.toLowerCase().indexOf("deposit");
   if (depositIdx >= 0) {
     const region = flat.slice(depositIdx, depositIdx + 250);
@@ -140,6 +150,7 @@ function parseRequirements(text) {
   return { requirements: found, progress };
 }
 
+/** Back-compat: requirements only */
 function parseRequirementsLegacy(text) {
   return parseRequirements(text).requirements;
 }
