@@ -19,11 +19,12 @@
       height: 100%;
       box-sizing: border-box;
       padding: 0.35rem 0.75rem;
-      background: rgba(13, 17, 23, 0.82);
-      border: 1px solid rgba(48, 54, 61, 0.9);
+      background: rgba(13, 17, 23, 0.88);
+      border: 1px solid rgba(88, 166, 255, 0.45);
       border-radius: 10px;
       backdrop-filter: blur(8px);
-      -webkit-app-region: no-drag;
+      -webkit-app-region: drag;
+      cursor: move;
     }
     #status {
       font-size: clamp(0.65rem, 1.5vw, 0.8rem);
@@ -32,6 +33,7 @@
       white-space: nowrap;
       overflow: hidden;
       text-overflow: ellipsis;
+      -webkit-app-region: drag;
     }
     #status.ocr { color: #d29922; }
     #status.ocr_done { color: #3fb950; }
@@ -41,6 +43,7 @@
       flex-wrap: wrap;
       gap: 0.35rem 0.5rem;
       align-items: center;
+      -webkit-app-region: drag;
     }
     .chip {
       display: inline-flex;
@@ -55,6 +58,7 @@
       color: #e6edf3;
       max-width: 100%;
       font-weight: 600;
+      -webkit-app-region: drag;
     }
     .chip.done { opacity: 0.55; border-color: #238636; }
     .chip .count {
@@ -71,10 +75,17 @@
       font-size: clamp(0.65rem, 1.6vw, 0.85rem);
     }
     .empty { color: #8b949e; font-size: 0.8rem; }
+    .meta {
+      font-size: clamp(0.6rem, 1.3vw, 0.75rem);
+      color: #8b949e;
+      margin-bottom: 0.15rem;
+      -webkit-app-region: drag;
+    }
   </style>
 </head>
 <body>
   <div id="bar">
+    <div class="meta" id="meta"></div>
     <div id="status">Ready</div>
     <div id="list" class="empty">No active requirements</div>
   </div>
@@ -96,6 +107,15 @@
           st.textContent = s.status.message || "Ready";
           st.className = s.status.phase || "";
         }
+        const missionN = s.remaining_mission_count != null
+          ? s.remaining_mission_count
+          : (s.active_count || 0);
+        const meta = document.getElementById("meta");
+        if (meta) {
+          meta.textContent = missionN
+            ? ("Across " + missionN + " mission" + (missionN === 1 ? "" : "s"))
+            : "";
+        }
         const list = document.getElementById("list");
         const rem = s.remaining_totals || {};
         const keys = Object.keys(rem).sort();
@@ -114,7 +134,6 @@
           let clusterList = Array.isArray(d.signatures) && d.signatures.length
             ? d.signatures
             : (base != null ? [base, base * 2, base * 3, base * 4, base * 5] : []);
-          // Format: Aluminium 7 (4285 · 8570 · 12855 · 17140 · 21425)
           const sigNums = clusterList.join(" · ");
           const label = sigNums
             ? `${escapeHtml(k)} <span class="count ${n === 0 ? "zero" : ""}">${n}</span> <span class="sig">(${sigNums})</span>`
