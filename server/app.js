@@ -42,7 +42,8 @@ function createServer(options = {}) {
 
   function onLogEvent(ev) {
     if (ev.kind === "accept") {
-      store.addOrUpdateMission(ev.mission_id, "Pending title…", ev.timestamp);
+      // Title must match mining/scan/ore so the card is visible and auto-OCR runs
+      store.addOrUpdateMission(ev.mission_id, "Ore Scan (accepted)", ev.timestamp);
       console.log(`[log] ACCEPT  ${ev.mission_id.slice(0, 8)}…`);
     } else if (ev.kind === "contract") {
       store.addOrUpdateMission(
