@@ -12,7 +12,7 @@ const COMMON_RESOURCES = [
 /** Battaglia ore-scan style missions only (title keywords) */
 function isMiningScanTitle(title) {
   const s = String(title || "").toLowerCase();
-  return /mining|scan|ore/.test(s);
+  return /mining|scan|ore|gathering/.test(s);
 }
 
 class Mission {
