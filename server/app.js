@@ -185,8 +185,11 @@ function createServer(options = {}) {
       (m) => m.status === "completed"
     );
     const remaining = {};
+    let remaining_mission_count = 0;
     for (const m of active) {
-      for (const [r, n] of Object.entries(m.remaining())) {
+      const rem = m.remaining();
+      if (Object.keys(rem).length) remaining_mission_count += 1;
+      for (const [r, n] of Object.entries(rem)) {
         remaining[r] = (remaining[r] || 0) + n;
       }
     }
@@ -207,6 +210,7 @@ function createServer(options = {}) {
       completed_count: completed.length,
       total_missions: Object.keys(store.missions).length,
       remaining_totals: remaining,
+      remaining_mission_count,
       remaining_detailed,
       signatures: RESOURCE_SIGNATURES,
       scan_events: store.scan_history.length,
