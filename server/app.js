@@ -3,7 +3,7 @@
 const express = require("express");
 const path = require("path");
 const fs = require("fs");
-const { MissionStore, COMMON_RESOURCES } = require("./missionStore");
+const { MissionStore, COMMON_RESOURCES, isMiningScanTitle } = require("./missionStore");
 const { LogParser } = require("./logParser");
 const { parseRequirements, parseOcrResult } = require("./ocrParse");
 const {
@@ -178,7 +178,9 @@ function createServer(options = {}) {
   });
 
   app.get("/api/stats", (_req, res) => {
-    const active = store.activeMissions();
+    const active = store.activeScanMissions
+      ? store.activeScanMissions()
+      : store.activeMissions().filter((m) => isMiningScanTitle(m.title));
     const completed = Object.values(store.missions).filter(
       (m) => m.status === "completed"
     );
