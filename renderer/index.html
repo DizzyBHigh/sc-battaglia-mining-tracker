@@ -1,1 +1,74 @@
-PLACEHOLDER
+<!DOCTYPE html>
+<html lang="en"><head><meta charset="UTF-8"/><title>SC Battaglia Mining Tracker</title>
+<script src="https://cdn.jsdelivr.net/npm/tesseract.js@5/dist/tesseract.min.js"></script>
+<link rel="stylesheet" href="styles.css" onerror=""/>
+<style>
+:root{--bg:#0d1117;--surface:#161b22;--border:#30363d;--text:#e6edf3;--muted:#8b949e;--accent:#58a6ff;--green:#3fb950;--orange:#d29922;--red:#f85149;--purple:#a371f7}
+*{box-sizing:border-box;margin:0;padding:0}body{font-family:Segoe UI,system-ui,sans-serif;background:var(--bg);color:var(--text);min-height:100vh;line-height:1.5}
+header{background:var(--surface);border-bottom:1px solid var(--border);padding:.75rem 1.5rem;display:flex;flex-wrap:wrap;align-items:center;justify-content:space-between;gap:.35rem 1rem;position:sticky;top:0;z-index:50}
+header #log-path-bar{flex:1 1 100%;order:3}header h1{font-size:1.15rem;font-weight:600;display:flex;align-items:center;gap:.5rem}
+.badge{font-size:.7rem;background:var(--purple);color:#fff;padding:.15rem .45rem;border-radius:999px}
+.stats{display:flex;gap:1.25rem;font-size:.85rem;color:var(--muted)}.stats strong{color:var(--text)}
+main{max-width:1200px;margin:0 auto;padding:1.25rem 1.5rem 3rem;display:grid;grid-template-columns:1fr 340px;gap:1.5rem}
+@media(max-width:900px){main{grid-template-columns:1fr}}
+.card{background:var(--surface);border:1px solid var(--border);border-radius:10px;padding:1rem 1.15rem;margin-bottom:1rem}
+.card h2{font-size:.95rem;font-weight:600;margin-bottom:.75rem;display:flex;align-items:center;justify-content:space-between}
+.btn{display:inline-flex;align-items:center;gap:.35rem;background:var(--accent);color:#0d1117;border:none;border-radius:6px;padding:.4rem .85rem;font-size:.85rem;font-weight:600;cursor:pointer}.btn:hover{opacity:.9}.btn-ghost{background:transparent;color:var(--muted);border:1px solid var(--border)}.btn-green{background:var(--green)}.btn-orange{background:var(--orange)}.btn-sm{padding:.25rem .55rem;font-size:.8rem}
+select,input[type=number],input[type=text]{background:var(--bg);border:1px solid var(--border);color:var(--text);border-radius:6px;padding:.4rem .6rem;font-size:.9rem;width:100%}
+.scan-row{display:flex;gap:.5rem;align-items:center;margin-bottom:.5rem}.scan-row select{flex:1}
+.mission{border:1px solid var(--border);border-radius:8px;padding:.85rem 1rem;margin-bottom:.75rem;background:#0d1117}.mission.complete{border-color:var(--green);opacity:.75}.mission.needs-req{border-color:var(--orange)}
+.mission-header{display:flex;justify-content:space-between;gap:.75rem;margin-bottom:.5rem}.mission-title{font-weight:600}.mission-meta{font-size:.75rem;color:var(--muted)}
+.req-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(140px,1fr));gap:.4rem;margin-top:.5rem}
+.req-item{background:var(--surface);border-radius:6px;padding:.35rem .5rem;font-size:.8rem;display:flex;justify-content:space-between;align-items:center}.req-item.done{color:var(--green)}.req-name{font-weight:600}.req-left{margin-left:.5rem;font-size:.75rem;color:var(--orange);font-weight:500}
+.banner{background:linear-gradient(90deg,#1a2332,#162032);border:1px solid var(--accent);border-radius:8px;padding:.75rem 1rem;margin-bottom:1rem;font-size:.9rem}.banner strong{color:var(--accent)}
+.toast{position:fixed;bottom:1.5rem;right:1.5rem;background:var(--surface);border:1px solid var(--green);padding:.75rem 1.1rem;border-radius:8px;z-index:100;max-width:360px}
+.empty{color:var(--muted);font-size:.9rem;text-align:center;padding:1.5rem}.tabs{display:flex;gap:.5rem;margin-bottom:.75rem}
+.tab{background:transparent;border:none;color:var(--muted);padding:.35rem .7rem;border-radius:6px;cursor:pointer;font-size:.85rem}.tab.active{background:var(--border);color:var(--text)}
+.history-item{font-size:.8rem;padding:.4rem 0;border-bottom:1px solid var(--border);color:var(--muted)}.history-item strong{color:var(--text)}
+footer{text-align:center;color:var(--muted);font-size:.75rem;padding:1rem}
+#log-path-bar{display:flex;align-items:center;gap:.5rem;width:100%;margin-top:.45rem;padding:.25rem .4rem;border-radius:6px;background:rgba(0,0,0,.25);border:1px solid var(--border);font-size:.72rem;color:var(--muted)}
+#log-path-bar .log-label{flex-shrink:0;font-weight:700;text-transform:uppercase;letter-spacing:.04em;color:var(--accent);font-size:.65rem}
+#log-path-text{flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;font-family:ui-monospace,Consolas,monospace;color:var(--text);direction:rtl;text-align:left}
+</style></head><body>
+<header><h1>⛏️ Battaglia Mining Tracker <span class="badge" id="status-badge">LIVE</span></h1>
+<div class="stats" id="stats">
+<span>Active: <strong id="stat-active">–</strong></span>
+<span>Completed: <strong id="stat-completed">–</strong></span>
+<span>Scans: <strong id="stat-scans">–</strong></span>
+<button class="btn btn-ghost btn-sm" onclick="pickLog()">Log file…</button>
+<button class="btn btn-sm" id="btn-overlay" onclick="toggleOverlay()">Overlay</button>
+<label style="font-size:.8rem;color:var(--muted);display:inline-flex;align-items:center;gap:.35rem;cursor:pointer"><input type="checkbox" id="chk-overlay-drag" onchange="onOverlayDragCheckbox(this)"/>Allow drag overlay</label>
+</div>
+<div id="log-path-bar"><span class="log-label">Log</span><span id="log-path-text">–</span></div></header>
+<main><section>
+<div class="banner" id="complete-banner" style="display:none"><strong>Objective(s) just completed!</strong> <span id="complete-msg"></span> → Record Scan</div>
+<div class="card"><h2>Record a Scan <span style="font-size:.75rem;color:var(--muted);font-weight:400">shared</span></h2>
+<div class="scan-row"><select id="scan-resource" style="flex:1.4"></select>
+<input type="number" id="scan-count" value="1" min="1" max="20" style="width:4.5rem"/>
+<button class="btn btn-green" onclick="recordScan()">Record Scan</button></div></div>
+<div class="card" id="ocr-card"><h2>OCR Contract Screen <span style="font-size:.75rem;color:var(--muted);font-weight:400">Tesseract.js</span></h2>
+<p style="font-size:.8rem;color:var(--muted);margin-bottom:.6rem">Leave contract DETAILS open for screen OCR. Or use Clipboard / Upload.</p>
+<div class="scan-row"><select id="ocr-mission" style="flex:1"><option value="">— pick mission —</option></select>
+<button class="btn btn-orange btn-sm" onclick="ocrClipboard()">From Clipboard</button>
+<button class="btn btn-sm" onclick="newContractFromScreen()" title="Capture screen, OCR, create mission">New contract from screen</button>
+<label class="btn btn-ghost btn-sm" style="cursor:pointer;margin:0">Upload<input type="file" id="ocr-file" accept="image/*" style="display:none" onchange="ocrUpload(this)"/></label>
+</div>
+<div id="ocr-progress" style="display:none;font-size:.8rem;margin-top:.5rem;color:var(--accent)"></div>
+<div id="ocr-result" style="font-size:.8rem;margin-top:.5rem;color:var(--muted)"></div></div>
+<div class="card"><h2>Active Missions <button class="btn btn-ghost btn-sm" onclick="loadMissions()">Refresh</button></h2>
+<div class="tabs"><button class="tab active" data-filter="active" onclick="setFilter(this)">Active</button>
+<button class="tab" data-filter="all" onclick="setFilter(this)">All</button>
+<button class="tab" data-filter="completed" onclick="setFilter(this)">Completed</button></div>
+<div id="mission-list"><div class="empty">Loading…</div></div></div>
+</section>
+<aside><div class="card"><h2>Remaining Totals</h2><div id="remaining-totals" class="empty">—</div></div>
+<div class="card"><h2>Recent Scans</h2><div id="history-list" class="empty">—</div></div>
+<div class="card"><h2>How to use</h2>
+<ol style="font-size:.8rem;color:var(--muted);padding-left:1.1rem">
+<li>Accept missions in-game or use <strong>New contract from screen</strong>.</li>
+<li><strong>Re-OCR</strong> on a card captures the screen and refreshes requirements.</li>
+<li>Record Scan applies shared progress across active missions.</li>
+</ol></div></aside></main>
+<footer>Star Citizen · Battaglia tracker · local only</footer>
+<script src="app.js"></script>
+</body></html>
