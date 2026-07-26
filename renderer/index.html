@@ -1,0 +1,1015 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>SC Battaglia Mining Tracker</title>
+  <!-- Tesseract.js: downloads WASM + English traineddata from CDN on first use (no system install) -->
+  <script src="https://cdn.jsdelivr.net/npm/tesseract.js@5/dist/tesseract.min.js"></script>
+  <style>
+    :root {
+      --bg: #0d1117;
+      --surface: #161b22;
+      --border: #30363d;
+      --text: #e6edf3;
+      --muted: #8b949e;
+      --accent: #58a6ff;
+      --green: #3fb950;
+      --orange: #d29922;
+      --red: #f85149;
+      --purple: #a371f7;
+    }
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+    body {
+      font-family: "Segoe UI", system-ui, -apple-system, sans-serif;
+      background: var(--bg);
+      color: var(--text);
+      min-height: 100vh;
+      line-height: 1.5;
+    }
+    header {
+      background: var(--surface);
+      border-bottom: 1px solid var(--border);
+      padding: 0.75rem 1.5rem;
+      display: flex;
+      flex-wrap: wrap;
+      align-items: center;
+      justify-content: space-between;
+      gap: 0.35rem 1rem;
+      position: sticky;
+      top: 0;
+      z-index: 50;
+    }
+    header #log-path-bar {
+      flex: 1 1 100%;
+      order: 3;
+    }
+    header h1 {
+      font-size: 1.15rem;
+      font-weight: 600;
+      display: flex;
+      align-items: center;
+      gap: 0.5rem;
+    }
+    header h1 span.badge {
+      font-size: 0.7rem;
+      background: var(--purple);
+      color: #fff;
+      padding: 0.15rem 0.45rem;
+      border-radius: 999px;
+    }
+    .stats {
+      display: flex;
+      gap: 1.25rem;
+      font-size: 0.85rem;
+      color: var(--muted);
+    }
+    .stats strong { color: var(--text); }
+    main {
+      max-width: 1200px;
+      margin: 0 auto;
+      padding: 1.25rem 1.5rem 3rem;
+      display: grid;
+      grid-template-columns: 1fr 340px;
+      gap: 1.5rem;
+    }
+    @media (max-width: 900px) {
+      main { grid-template-columns: 1fr; }
+    }
+    .card {
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: 10px;
+      padding: 1rem 1.15rem;
+      margin-bottom: 1rem;
+    }
+    .card h2 {
+      font-size: 0.95rem;
+      font-weight: 600;
+      margin-bottom: 0.75rem;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+    }
+    .btn {
+      display: inline-flex;
+      align-items: center;
+      gap: 0.35rem;
+      background: var(--accent);
+      color: #0d1117;
+      border: none;
+      border-radius: 6px;
+      padding: 0.4rem 0.85rem;
+      font-size: 0.85rem;
+      font-weight: 600;
+      cursor: pointer;
+      transition: opacity 0.15s;
+    }
+    .btn:hover { opacity: 0.9; }
+    .btn:disabled { opacity: 0.4; cursor: not-allowed; }
+    .btn-ghost {
+      background: transparent;
+      color: var(--muted);
+      border: 1px solid var(--border);
+    }
+    .btn-ghost:hover { color: var(--text); border-color: var(--muted); }
+    .btn-green { background: var(--green); }
+    .btn-orange { background: var(--orange); }
+    .btn-sm { padding: 0.25rem 0.55rem; font-size: 0.8rem; }
+    select, input[type="number"], input[type="text"] {
+      background: var(--bg);
+      border: 1px solid var(--border);
+      color: var(--text);
+      border-radius: 6px;
+      padding: 0.4rem 0.6rem;
+      font-size: 0.9rem;
+      width: 100%;
+    }
+    select:focus, input:focus { outline: 2px solid var(--accent); outline-offset: -1px; }
+    .scan-row {
+      display: flex;
+      gap: 0.5rem;
+      align-items: center;
+      margin-bottom: 0.5rem;
+    }
+    .scan-row select { flex: 1; }
+    .scan-row input[type="number"] { width: 70px; flex: none; }
+    .mission {
+      border: 1px solid var(--border);
+      border-radius: 8px;
+      padding: 0.85rem 1rem;
+      margin-bottom: 0.75rem;
+      background: #0d1117;
+      transition: border-color 0.2s;
+    }
+    .mission.complete { border-color: var(--green); opacity: 0.75; }
+    .mission.needs-req { border-color: var(--orange); }
+    .mission-header {
+      display: flex;
+      justify-content: space-between;
+      align-items: flex-start;
+      gap: 0.75rem;
+      margin-bottom: 0.5rem;
+    }
+    .mission-title { font-weight: 600; font-size: 0.95rem; }
+    .mission-meta { font-size: 0.75rem; color: var(--muted); }
+    .req-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fill, minmax(140px, 1fr));
+      gap: 0.4rem;
+      margin-top: 0.5rem;
+    }
+    .req-item {
+      background: var(--surface);
+      border-radius: 6px;
+      padding: 0.35rem 0.5rem;
+      font-size: 0.8rem;
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+    }
+    .req-item.done { color: var(--green); }
+    .req-item input { width: 48px; padding: 0.15rem 0.3rem; font-size: 0.8rem; }
+    .banner {
+      background: linear-gradient(90deg, #1a2332, #162032);
+      border: 1px solid var(--accent);
+      border-radius: 8px;
+      padding: 0.75rem 1rem;
+      margin-bottom: 1rem;
+      font-size: 0.9rem;
+    }
+    .banner strong { color: var(--accent); }
+    .toast {
+      position: fixed;
+      bottom: 1.5rem;
+      right: 1.5rem;
+      background: var(--surface);
+      border: 1px solid var(--green);
+      color: var(--text);
+      padding: 0.75rem 1.1rem;
+      border-radius: 8px;
+      box-shadow: 0 8px 24px rgba(0,0,0,0.4);
+      z-index: 100;
+      animation: slideIn 0.25s ease;
+      max-width: 360px;
+    }
+    @keyframes slideIn { from { transform: translateY(20px); opacity: 0; } }
+    .empty { color: var(--muted); font-size: 0.9rem; text-align: center; padding: 1.5rem; }
+    .tabs { display: flex; gap: 0.5rem; margin-bottom: 0.75rem; }
+    .tab {
+      background: transparent;
+      border: none;
+      color: var(--muted);
+      padding: 0.35rem 0.7rem;
+      border-radius: 6px;
+      cursor: pointer;
+      font-size: 0.85rem;
+    }
+    .tab.active { background: var(--border); color: var(--text); }
+    .history-item {
+      font-size: 0.8rem;
+      padding: 0.4rem 0;
+      border-bottom: 1px solid var(--border);
+      color: var(--muted);
+    }
+    .history-item strong { color: var(--text); }
+    footer {
+      text-align: center;
+      color: var(--muted);
+      font-size: 0.75rem;
+      padding: 1rem;
+    }
+  
+    .req-name { font-weight: 600; }
+    .req-counts { font-variant-numeric: tabular-nums; }
+    .req-left {
+      margin-left: 0.5rem;
+      font-size: 0.75rem;
+      color: var(--orange);
+      font-weight: 500;
+    }
+
+  
+    #log-path-bar {
+      display: flex;
+      align-items: center;
+      gap: 0.5rem;
+      width: 100%;
+      margin-top: 0.45rem;
+      padding: 0.25rem 0.4rem;
+      border-radius: 6px;
+      background: rgba(0,0,0,0.25);
+      border: 1px solid var(--border);
+      font-size: 0.72rem;
+      color: var(--muted);
+      min-width: 0;
+    }
+    #log-path-bar .log-label {
+      flex-shrink: 0;
+      font-weight: 700;
+      text-transform: uppercase;
+      letter-spacing: 0.04em;
+      color: var(--accent);
+      font-size: 0.65rem;
+    }
+    #log-path-text {
+      flex: 1;
+      min-width: 0;
+      overflow: hidden;
+      text-overflow: ellipsis;
+      white-space: nowrap;
+      font-family: ui-monospace, Consolas, monospace;
+      color: var(--text);
+      direction: rtl;
+      text-align: left;
+    }
+  </style>
+</head>
+<body>
+  <header>
+    <h1>
+      ⛏️ Battaglia Mining Tracker
+      <span class="badge" id="status-badge">LIVE</span>
+    </h1>
+    <div class="stats" id="stats">
+      <span>Active: <strong id="stat-active">–</strong></span>
+      <span>Completed: <strong id="stat-completed">–</strong></span>
+      <span>Scans: <strong id="stat-scans">–</strong></span>
+      <button class="btn btn-ghost btn-sm" onclick="pickLog()" title="Select Game.log">Log file…</button>
+      <button class="btn btn-sm" id="btn-overlay" onclick="toggleOverlay()" title="Toggle in-game overlay (Ctrl+Shift+O)">Overlay</button>
+      <label style="font-size:0.8rem;color:var(--muted);display:inline-flex;align-items:center;gap:0.35rem;cursor:pointer;user-select:none"
+             title="When checked, you can drag the overlay. When unchecked, mouse clicks go through to the game.">
+        <input type="checkbox" id="chk-overlay-drag" onchange="onOverlayDragCheckbox(this)" />
+        Allow drag overlay
+      </label>
+    </div>
+    <div id="log-path-bar" title="Current Game.log path (saved between sessions)">
+      <span class="log-label">Log</span>
+      <span id="log-path-text">–</span>
+    </div>
+  </header>
+
+  <main>
+    <section>
+      <div class="banner" id="complete-banner" style="display:none">
+        <strong>Objective(s) just completed!</strong>
+        <span id="complete-msg"></span>
+        → Select the resource you scanned below and hit <em>Record Scan</em>.
+      </div>
+
+      <div class="card">
+        <h2>
+          Record a Scan
+          <span style="font-size:0.75rem;color:var(--muted);font-weight:400">shared across active missions</span>
+        </h2>
+        <div class="scan-row">
+          <select id="scan-resource" style="flex:1.4" title="Resource you just scanned">
+            <!-- filled by JS from active mission needs + full list -->
+          </select>
+          <input type="number" id="scan-count" value="1" min="1" max="20" style="width:4.5rem" title="How many" />
+          <button class="btn btn-green" id="btn-scan" onclick="recordScan()">Record Scan</button>
+        </div>
+        <p style="font-size:0.75rem;color:var(--muted);margin-top:0.4rem">
+          Pick the resource and count once. Progress applies to <em>every</em> active mission that still needs it.
+          Extra types can be chosen from the full list at the bottom of the dropdown.
+        </p>
+      </div>
+
+      <div class="card" id="ocr-card">
+        <h2>
+          OCR Contract Screen
+          <span style="font-size:0.75rem;color:var(--muted);font-weight:400">Tesseract.js · no install needed</span>
+        </h2>
+        <p style="font-size:0.8rem;color:var(--muted);margin-bottom:0.6rem">
+          Open a Battaglia scan contract → screenshot the DETAILS / PRIMARY OBJECTIVES panel
+          (Win+Shift+S) → copy → <strong>From Clipboard</strong>, or upload a PNG/JPG.
+          Tesseract.js runs in the app (model downloads once from the internet). New mission cards trigger one automatic screen OCR.
+        </p>
+        <div class="scan-row">
+          <select id="ocr-mission" style="flex:1">
+            <option value="">— most recent / pick mission —</option>
+          </select>
+          <button class="btn btn-orange btn-sm" id="btn-ocr-clip" onclick="ocrClipboard()">From Clipboard</button>
+          <label class="btn btn-ghost btn-sm" style="cursor:pointer;margin:0">
+            Upload
+            <input type="file" id="ocr-file" accept="image/*" style="display:none" onchange="ocrUpload(this)" />
+          </label>
+        </div>
+        <div id="ocr-progress" style="display:none;font-size:0.8rem;margin-top:0.5rem;color:var(--accent)"></div>
+        <div id="ocr-result" style="font-size:0.8rem;margin-top:0.5rem;color:var(--muted)"></div>
+        <p style="font-size:0.75rem;color:var(--muted);margin-top:0.55rem">
+          When a new mission card is created, the app runs <strong>one automatic screen OCR</strong>
+          (keep the contract DETAILS panel open). You can also use Clipboard / Upload / <em>OCR this mission</em> manually.
+        </p>
+      </div>
+
+      <div class="card">
+        <h2>
+          Active Missions
+          <button class="btn btn-ghost btn-sm" onclick="loadMissions()">Refresh</button>
+        </h2>
+        <div class="tabs">
+          <button class="tab active" data-filter="active" onclick="setFilter(this)">Active</button>
+          <button class="tab" data-filter="all" onclick="setFilter(this)">All</button>
+          <button class="tab" data-filter="completed" onclick="setFilter(this)">Completed</button>
+        </div>
+        <div id="mission-list"><div class="empty">Loading…</div></div>
+      </div>
+    </section>
+
+    <aside>
+      <div class="card">
+        <h2>Remaining Totals</h2>
+        <div id="remaining-totals" class="empty">No active requirements</div>
+      </div>
+      <div class="card">
+        <h2>Recent Scans</h2>
+        <div id="history-list" class="empty">No scans yet</div>
+      </div>
+      <div class="card">
+        <h2>How to use</h2>
+        <ol style="font-size:0.8rem;color:var(--muted);padding-left:1.1rem">
+          <li>Accept Battaglia scan missions in-game — they appear here automatically.</li>
+          <li>Open the contract → screenshot (Win+Shift+S) → <strong>OCR from Clipboard</strong> to auto-fill requirements.</li>
+          <li>Or type the counts manually on the mission card and Save.</li>
+          <li>When you scan an asteroid, pick the resource and hit <strong>Record Scan</strong>.</li>
+          <li>Click <strong>Overlay</strong> (or Ctrl+Shift+O) to show remaining scans over the game.</li>
+          <li>New mission cards run <strong>one automatic OCR</strong> — leave the contract DETAILS panel open when accepting.</li>
+          <li>Progress is shared across every active mission that needs that resource.</li>
+        </ol>
+      </div>
+    </aside>
+  </main>
+  <footer>Star Citizen · Battaglia RBM tracker · local only</footer>
+
+  <script>
+    let currentFilter = "active";
+    let missionsCache = [];
+
+    async function pushStatus(message, phase) {
+      try {
+        await fetch("/api/status", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ message, phase: phase || "idle" }),
+        });
+      } catch (_) {}
+    }
+
+    let seenMissionIds = new Set();
+    let toastTimer = null;
+
+    function toast(msg) {
+      const existing = document.querySelector(".toast");
+      if (existing) existing.remove();
+      const el = document.createElement("div");
+      el.className = "toast";
+      el.textContent = msg;
+      document.body.appendChild(el);
+      clearTimeout(toastTimer);
+      toastTimer = setTimeout(() => el.remove(), 4500);
+    }
+
+    function setFilter(btn) {
+      document.querySelectorAll(".tab").forEach(t => t.classList.remove("active"));
+      btn.classList.add("active");
+      currentFilter = btn.dataset.filter;
+      renderMissions();
+    }
+
+    async function loadStats() {
+      const r = await fetch("/api/stats");
+      const s = await r.json();
+      document.getElementById("stat-active").textContent = s.active_count;
+      document.getElementById("stat-completed").textContent = s.completed_count;
+      document.getElementById("stat-scans").textContent = s.scan_events;
+      const logEl = document.getElementById("log-path-text");
+      if (logEl) {
+        const lp = s.log_path || "";
+        logEl.textContent = lp || "(not set — click Log file…)";
+        logEl.title = lp || "No Game.log selected";
+      }
+      const box = document.getElementById("remaining-totals");
+      const rem = s.remaining_totals || {};
+      const keys = Object.keys(rem).sort();
+      if (!keys.length) {
+        box.innerHTML = '<div class="empty">No active requirements</div>';
+      } else {
+        box.innerHTML = keys.map(k =>
+          `<div class="req-item"><span>${k}</span><strong>${rem[k]}</strong></div>`
+        ).join("");
+      }
+    }
+
+    async function loadMissions() {
+      const r = await fetch("/api/missions");
+      missionsCache = await r.json();
+      // New active missions without requirements → one automatic screen OCR
+      for (const m of missionsCache) {
+        if (m.status === "active" && !seenMissionIds.has(m.mission_id)) {
+          seenMissionIds.add(m.mission_id);
+          const keys = Object.keys(m.requirements || {});
+          if (!keys.length) {
+            populateOcrMissionSelect();
+            autoOcrForMission(m.mission_id);
+          }
+        }
+      }
+      renderMissions();
+      populateOcrMissionSelect();
+      loadStats();
+      loadHistory();
+      checkRecentCompletes();
+    }
+
+    function renderMissions() {
+      const list = document.getElementById("mission-list");
+      let items = missionsCache;
+      if (currentFilter === "active") items = items.filter(m => m.status === "active");
+      if (currentFilter === "completed") items = items.filter(m => m.status === "completed");
+
+      if (!items.length) {
+        list.innerHTML = '<div class="empty">No missions match this filter</div>';
+        return;
+      }
+
+      list.innerHTML = items.map(m => {
+        const reqs = m.requirements || {};
+        const prog = m.progress || {};
+        const keys = Object.keys(reqs).sort();
+        const needsReq = keys.length === 0 && m.status === "active";
+        const cls = m.status === "completed" ? "complete" : (needsReq ? "needs-req" : "");
+
+        let body = "";
+        if (keys.length) {
+          body = `<div class="req-grid">` + keys.map(r => {
+            const need = reqs[r] || 0;
+            const have = prog[r] || 0;
+            const done = need > 0 && have >= need;
+            const left = Math.max(0, need - have);
+            return `<div class="req-item ${done ? "done" : ""}">
+              <span class="req-name">${escapeHtml(r)}${sigLabel(r)}</span>
+              <span class="req-counts">
+                <strong>${have}</strong><span style="color:var(--muted)"> / ${need}</span>
+                ${!done && m.status === "active" ? `<span class="req-left">${left} left</span>` : ""}
+                ${done ? `<span class="req-left" style="color:var(--green)">done</span>` : ""}
+              </span>
+            </div>`;
+          }).join("") + `</div>`;
+        } else if (m.status === "active") {
+          body = `<div class="empty" style="padding:0.6rem 0">
+            No items to scan yet — OCR this contract so targets appear here.
+            <div style="margin-top:0.5rem">
+              <button class="btn btn-orange btn-sm" onclick="ocrThisMission('${m.mission_id}')">OCR this mission</button>
+            </div>
+          </div>`;
+        } else {
+          body = `<div class="empty" style="padding:0.5rem">No requirements recorded</div>`;
+        }
+
+        const actions = m.status === "active"
+          ? `<div style="margin-top:0.55rem;display:flex;gap:0.4rem;flex-wrap:wrap">
+              ${keys.length ? `<button class="btn btn-ghost btn-sm" onclick="ocrThisMission('${m.mission_id}')">Re-OCR</button>` : ""}
+              <button class="btn btn-ghost btn-sm" onclick="abandon('${m.mission_id}')">Abandon</button>
+            </div>`
+          : "";
+
+        return `<div class="mission ${cls}">
+          <div class="mission-header">
+            <div>
+              <div class="mission-title">${escapeHtml(m.title)}</div>
+              <div class="mission-meta">${m.mission_id.slice(0,8)}… · accepted ${fmtTime(m.accepted_at)}
+                ${m.completed_at ? " · done " + fmtTime(m.completed_at) : ""}</div>
+            </div>
+            <span style="font-size:0.75rem;color:${m.status==="completed"? "var(--green)":"var(--orange)"}">${m.status}</span>
+          </div>
+          ${body}
+          ${actions}
+        </div>`;
+      }).join("");
+
+      refreshScanDropdown();
+    }
+
+    /** Focus OCR controls on a mission and scroll to OCR card */
+    function ocrThisMission(mid) {
+      const sel = document.getElementById("ocr-mission");
+      if (sel) {
+        // ensure option exists
+        if (![...sel.options].some(o => o.value === mid)) {
+          const m = missionsCache.find(x => x.mission_id === mid);
+          const label = m ? (m.title || "").slice(0, 40) + " (" + mid.slice(0, 8) + ")" : mid.slice(0, 8);
+          const opt = document.createElement("option");
+          opt.value = mid;
+          opt.textContent = label;
+          sel.appendChild(opt);
+        }
+        sel.value = mid;
+      }
+      const card = document.getElementById("ocr-card");
+      if (card) card.scrollIntoView({ behavior: "smooth", block: "start" });
+      toast("Running one OCR for this mission…");
+      autoOcrForMission(mid);
+    }
+
+    function escapeHtml(s) {
+      return String(s).replace(/[&<>"']/g, c => ({"&":"&amp;","<":"&lt;",">":"&gt;","\"":"&quot;","'":"&#39;"}[c]));
+    }
+    function fmtTime(iso) {
+      if (!iso) return "–";
+      try {
+        const d = new Date(iso);
+        return d.toLocaleString(undefined, { month:"short", day:"numeric", hour:"2-digit", minute:"2-digit" });
+      } catch { return iso.slice(0,16); }
+    }
+
+    async function abandon(mid) {
+      if (!confirm("Mark this mission as abandoned?")) return;
+      await fetch(`/api/mission/${mid}`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ status: "abandoned" }),
+      });
+      loadMissions();
+    }
+
+    async function recordScan() {
+      const resource = document.getElementById("scan-resource").value;
+      const count = parseInt(document.getElementById("scan-count").value, 10) || 1;
+      const r = await fetch("/api/scan", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ resource, count }),
+      });
+      const data = await r.json();
+      if (data.error) {
+        toast("Error: " + data.error);
+        return;
+      }
+      const appliedN = Object.keys(data.applied || {}).length;
+      let msg = `Scanned ${count}× ${resource} → applied to ${appliedN} mission(s)`;
+      if (data.newly_completed && data.newly_completed.length) {
+        msg += ` · ${data.newly_completed.length} completed!`;
+      }
+      toast(msg);
+      document.getElementById("complete-banner").style.display = "none";
+      loadMissions();
+    }
+
+    function populateOcrMissionSelect() {
+      const sel = document.getElementById("ocr-mission");
+      if (!sel) return;
+      const active = missionsCache.filter(m => m.status === "active");
+      const cur = sel.value;
+      sel.innerHTML = '<option value="">— most recent active —</option>' +
+        active.map(m =>
+          `<option value="${m.mission_id}">${escapeHtml(m.title).slice(0,40)} (${m.mission_id.slice(0,8)})</option>`
+        ).join("");
+      if (cur) sel.value = cur;
+    }
+
+    function selectedOcrMissionId() {
+      const mid = document.getElementById("ocr-mission").value;
+      if (mid) return mid;
+      const active = missionsCache.filter(m => m.status === "active");
+      return active.length ? active[0].mission_id : "";
+    }
+
+    let tesseractWorker = null;
+
+    async function getTesseractWorker() {
+      if (tesseractWorker) return tesseractWorker;
+      const prog = document.getElementById("ocr-progress");
+      prog.style.display = "block";
+      prog.textContent = "Downloading Tesseract.js model (first time only)…";
+      // CDN paths – language data + WASM fetched from the internet automatically
+      tesseractWorker = await Tesseract.createWorker("eng", 1, {
+        logger: (m) => {
+          if (m.status === "loading tesseract core") {
+            prog.textContent = "Loading Tesseract core…";
+          } else if (m.status === "initializing tesseract") {
+            prog.textContent = "Initializing Tesseract…";
+          } else if (m.status === "loading language traineddata") {
+            prog.textContent = "Downloading English language data…";
+          } else if (m.status === "initializing api") {
+            prog.textContent = "Preparing OCR engine…";
+          } else if (m.status === "recognizing text") {
+            const pct = m.progress != null ? Math.round(m.progress * 100) : 0;
+            prog.textContent = `Recognizing text… ${pct}%`;
+          }
+        },
+      });
+      // PSM 4 works well for the two-column contract panel
+      await tesseractWorker.setParameters({ tessedit_pageseg_mode: "4" });
+      return tesseractWorker;
+    }
+
+    async function ocrImageSource(source) {
+      const box = document.getElementById("ocr-result");
+      const prog = document.getElementById("ocr-progress");
+      box.textContent = "";
+      prog.style.display = "block";
+      prog.textContent = "Starting OCR…";
+      await pushStatus(
+        "Performing OCR — please leave the contract screen open.",
+        "ocr"
+      );
+      try {
+        const worker = await getTesseractWorker();
+        prog.textContent = "Recognizing text…";
+        const { data: { text } } = await worker.recognize(source);
+        prog.style.display = "none";
+
+        // Send raw text to backend for requirement parsing + optional apply
+        const mid = selectedOcrMissionId();
+        const r = await fetch("/api/ocr/parse", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ text, mission_id: mid || null }),
+        });
+        const data = await r.json();
+        if (data.error) {
+          box.textContent = "Error: " + data.error;
+          box.style.color = "var(--red)";
+          toast("OCR parse failed: " + data.error);
+          return;
+        }
+        const reqs = data.requirements || {};
+        const keys = Object.keys(reqs);
+        if (!keys.length) {
+          box.textContent = "No requirements detected. Try a clearer crop of the DETAILS / PRIMARY OBJECTIVES panel.";
+          box.style.color = "var(--orange)";
+          await pushStatus(
+            "OCR found no data — leave DETAILS open and retry.",
+            "error"
+          );
+          return;
+        }
+        const summary = keys.map(k => `${k}=${reqs[k]}`).join(", ");
+        box.innerHTML = `<strong style="color:var(--green)">Found:</strong> ${summary}` +
+          (data.applied ? " → applied to mission" : "");
+        box.style.color = "var(--muted)";
+        toast("OCR: " + summary);
+        await pushStatus(
+          "OCR complete — you can close this contract or look for a new one.",
+          "ocr_done"
+        );
+        loadMissions();
+      } catch (e) {
+        prog.style.display = "none";
+        box.textContent = "OCR error: " + e;
+        box.style.color = "var(--red)";
+        await pushStatus("OCR failed — try again.", "error");
+        toast("OCR failed: " + e);
+      }
+    }
+
+    async function ocrClipboard() {
+      try {
+        // Modern clipboard API (works in Chromium / pywebview when allowed)
+        const items = await navigator.clipboard.read();
+        for (const item of items) {
+          const type = item.types.find(t => t.startsWith("image/"));
+          if (type) {
+            const blob = await item.getType(type);
+            await ocrImageSource(blob);
+            return;
+          }
+        }
+        toast("Clipboard has no image. Use Win+Shift+S then copy, or Upload a file.");
+      } catch (e) {
+        // Fallback: ask user to paste
+        toast("Clipboard blocked – press Ctrl+V in this window after copying a screenshot.");
+        const box = document.getElementById("ocr-result");
+        box.textContent = "Waiting for Ctrl+V paste…";
+        box.style.color = "var(--orange)";
+      }
+    }
+
+    async function ocrUpload(input) {
+      if (!input.files || !input.files[0]) return;
+      await ocrImageSource(input.files[0]);
+      input.value = "";
+    }
+
+    // Allow Ctrl+V paste of screenshots as a reliable fallback
+    document.addEventListener("paste", async (ev) => {
+      const items = ev.clipboardData && ev.clipboardData.items;
+      if (!items) return;
+      for (const item of items) {
+        if (item.type.startsWith("image/")) {
+          ev.preventDefault();
+          const file = item.getAsFile();
+          if (file) await ocrImageSource(file);
+          return;
+        }
+      }
+    });
+
+    async function loadHistory() {
+      const r = await fetch("/api/history");
+      const hist = await r.json();
+      const box = document.getElementById("history-list");
+      if (!hist.length) {
+        box.innerHTML = '<div class="empty">No scans yet</div>';
+        return;
+      }
+      box.innerHTML = hist.slice().reverse().slice(0, 15).map(e =>
+        `<div class="history-item">
+          <strong>${e.count}× ${e.resource}</strong>
+          → ${e.applied_to.length} mission(s)
+          <br/><span style="font-size:0.7rem">${fmtTime(e.timestamp)}</span>
+        </div>`
+      ).join("");
+    }
+
+    async function checkRecentCompletes() {
+      const r = await fetch("/api/recent_completes");
+      const list = await r.json();
+      if (!list.length) return;
+      const latest = list[list.length - 1];
+      const age = Date.now() - new Date(latest.timestamp).getTime();
+      if (age < 120000) { // last 2 min
+        const banner = document.getElementById("complete-banner");
+        document.getElementById("complete-msg").textContent =
+          ` ${list.filter(x => Date.now() - new Date(x.timestamp).getTime() < 120000).length} objective(s) finished around ${fmtTime(latest.timestamp)}.`;
+        banner.style.display = "block";
+      }
+    }
+
+
+    async function initResources() {
+      try {
+        const r = await fetch("/api/resources");
+        window.RESOURCES = await r.json();
+        try {
+          const s = await fetch("/api/signatures");
+          window.SIGNATURES = await s.json();
+        } catch (_) { window.SIGNATURES = {}; }
+        refreshScanDropdown();
+      } catch (e) {
+        console.error(e);
+      }
+    }
+
+    function sigLabel(resource) {
+      const sig = (window.SIGNATURES || {})[resource];
+      return sig != null ? ` <span style="color:var(--accent);font-size:0.8em;font-weight:600">RS ${sig}</span>` : "";
+    }
+
+    /** Dropdown: resources still needed first, then full list for extras */
+    function refreshScanDropdown() {
+      const sel = document.getElementById("scan-resource");
+      if (!sel) return;
+      const prev = sel.value;
+      const needed = {};
+      for (const m of missionsCache) {
+        if (m.status !== "active") continue;
+        const rem = m.remaining || {};
+        for (const [k, v] of Object.entries(rem)) {
+          if (v > 0) needed[k] = (needed[k] || 0) + v;
+        }
+      }
+      const needKeys = Object.keys(needed).sort((a, b) => needed[b] - needed[a] || a.localeCompare(b));
+      const all = window.RESOURCES || [];
+      const rest = all.filter(r => !needed[r]);
+
+      let html = "";
+      if (needKeys.length) {
+        html += `<optgroup label="Still needed">` +
+          needKeys.map(r => `<option value="${r}">${r} (${needed[r]} left)</option>`).join("") +
+          `</optgroup>`;
+      }
+      html += `<optgroup label="All resources">` +
+        (needKeys.length ? rest : all).map(r => `<option value="${r}">${r}</option>`).join("") +
+        `</optgroup>`;
+      // If something needed isn't in RESOURCES, still list it
+      const extras = needKeys.filter(r => !all.includes(r));
+      if (extras.length) {
+        html += `<optgroup label="From missions">` +
+          extras.map(r => `<option value="${r}">${r}</option>`).join("") +
+          `</optgroup>`;
+      }
+      sel.innerHTML = html || all.map(r => `<option value="${r}">${r}</option>`).join("");
+      if (prev && [...sel.options].some(o => o.value === prev)) sel.value = prev;
+      else if (needKeys.length) sel.value = needKeys[0];
+    }
+
+    async function pickLog() {
+      if (window.electronAPI && window.electronAPI.pickLogFile) {
+        const p = await window.electronAPI.pickLogFile();
+        if (p) {
+          toast("Log saved — watching: " + p);
+          loadStats();
+        }
+      } else {
+        toast("Log picker only available in Electron");
+      }
+    }
+
+    async function toggleOverlay() {
+      if (!window.electronAPI || !window.electronAPI.overlayToggle) {
+        toast("Overlay only available in the Electron app");
+        return;
+      }
+      const vis = await window.electronAPI.overlayToggle();
+      toast(vis ? "Overlay shown (Ctrl+Shift+O to toggle)" : "Overlay hidden");
+      const btn = document.getElementById("btn-overlay");
+      if (btn) btn.textContent = vis ? "Overlay ✓" : "Overlay";
+      // Re-apply drag mode when showing
+      const chk = document.getElementById("chk-overlay-drag");
+      if (chk && vis) await onOverlayDragCheckbox(chk);
+    }
+
+    /**
+     * Checked  → allow drag (click-through OFF)
+     * Unchecked → clicks pass through to game (cannot drag)
+     */
+    async function onOverlayDragCheckbox(chk) {
+      if (!window.electronAPI || !window.electronAPI.overlayClickThrough) return;
+      const allowDrag = !!chk.checked;
+      // click-through = opposite of allow drag
+      await window.electronAPI.overlayClickThrough(!allowDrag);
+      toast(allowDrag
+        ? "Overlay drag ON – move the overlay, then uncheck to play"
+        : "Overlay drag OFF – mouse goes to the game");
+    }
+
+    async function refreshOverlayBtn() {
+      if (!window.electronAPI || !window.electronAPI.overlayIsVisible) return;
+      try {
+        const vis = await window.electronAPI.overlayIsVisible();
+        const btn = document.getElementById("btn-overlay");
+        if (btn) btn.textContent = vis ? "Overlay ✓" : "Overlay";
+        if (window.electronAPI.overlayGetClickThrough) {
+          const ct = await window.electronAPI.overlayGetClickThrough();
+          const chk = document.getElementById("chk-overlay-drag");
+          // allow drag = !clickThrough
+          if (chk) chk.checked = !ct;
+        }
+      } catch (_) {}
+    }
+
+    // boot
+    initResources().then(() => { loadMissions(); refreshOverlayBtn(); });
+
+
+    // ---------- One-shot automatic OCR when a mission card is created ----------
+    let autoOcrBusy = false;
+    const autoOcrAttempted = new Set();
+
+    async function autoOcrForMission(missionId) {
+      if (!missionId) return;
+      if (autoOcrBusy) {
+        // queue lightly: retry once shortly if busy
+        setTimeout(() => autoOcrForMission(missionId), 2500);
+        return;
+      }
+      if (autoOcrAttempted.has(missionId)) return;
+      autoOcrAttempted.add(missionId);
+
+      const box = document.getElementById("ocr-result");
+      const prog = document.getElementById("ocr-progress");
+
+      if (!window.electronAPI || !window.electronAPI.captureScreen) {
+        if (box) {
+          box.textContent = "Auto OCR needs the Electron app. Use From Clipboard / Upload.";
+          box.style.color = "var(--orange)";
+        }
+        toast("Open the contract panel, then use From Clipboard or Upload");
+        return;
+      }
+
+      autoOcrBusy = true;
+      try {
+        if (prog) {
+          prog.style.display = "block";
+          prog.textContent = "Auto OCR: capturing screen…";
+        }
+        if (box) {
+          box.textContent = "Automatic OCR for new mission…";
+          box.style.color = "var(--muted)";
+        }
+        await pushStatus(
+          "Performing OCR — please leave the contract screen open.",
+          "ocr"
+        );
+
+        // Short delay so the in-game contract UI can finish opening
+        await new Promise((r) => setTimeout(r, 1200));
+
+        const cap = await window.electronAPI.captureScreen({
+          maxWidth: 1600,
+          maxHeight: 900,
+          // right-side contract details panel
+          crop: { x: 0.28, y: 0.1, width: 0.7, height: 0.75 },
+        });
+
+        if (prog) prog.textContent = "Auto OCR: recognizing text…";
+        await pushStatus(
+          "Performing OCR — please leave the contract screen open.",
+          "ocr"
+        );
+        const worker = await getTesseractWorker();
+        const { data: { text } } = await worker.recognize(cap.dataUrl);
+
+        const r = await fetch("/api/ocr/parse", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            text,
+            mission_id: missionId,
+            apply_progress: true,
+          }),
+        });
+        const data = await r.json();
+        if (prog) prog.style.display = "none";
+
+        const reqs = data.requirements || {};
+        const keys = Object.keys(reqs);
+        if (!keys.length) {
+          if (box) {
+            box.textContent = "Auto OCR found no requirements. Keep DETAILS open and use From Clipboard / Upload, or click OCR this mission.";
+            box.style.color = "var(--orange)";
+          }
+          // Allow a manual retry via "OCR this mission" (clears attempted)
+          autoOcrAttempted.delete(missionId);
+          await pushStatus(
+            "OCR found no data — leave DETAILS open and retry, or use Clipboard.",
+            "error"
+          );
+          toast("Auto OCR missed the panel — try Clipboard OCR");
+          return;
+        }
+
+        const summary = keys.map((k) => k + "=" + reqs[k]).join(", ");
+        if (box) {
+          box.innerHTML = `<strong style="color:var(--green)">Auto OCR:</strong> ${summary}` +
+            (data.applied ? " → applied to mission" : "");
+          box.style.color = "var(--muted)";
+        }
+        toast("Auto OCR: " + summary);
+        await pushStatus(
+          "OCR complete — you can close this contract or look for a new one.",
+          "ocr_done"
+        );
+        loadMissions();
+      } catch (e) {
+        if (prog) prog.style.display = "none";
+        if (box) {
+          box.textContent = "Auto OCR error: " + e;
+          box.style.color = "var(--red)";
+        }
+        autoOcrAttempted.delete(missionId);
+        await pushStatus("OCR failed — try Clipboard or Upload.", "error");
+        toast("Auto OCR failed: " + e);
+      } finally {
+        autoOcrBusy = false;
+      }
+    }
+
+
+    setInterval(loadMissions, 8000);
+  </script>
+</body>
+</html>
