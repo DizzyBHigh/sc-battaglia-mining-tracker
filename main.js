@@ -20,7 +20,7 @@ const PORT = 17845;
 let mainWindow = null;
 let overlayWindow = null;
 let serverHandle = null;
-let overlayClickThrough = false; // false = can drag; true = clicks pass to game
+let overlayClickThrough = false;
 
 function defaultLogCandidates() {
   const home = os.homedir();
@@ -186,8 +186,6 @@ function toggleOverlay() {
 }
 
 function setOverlayClickThrough(enabled) {
-  // enabled=true  → mouse passes through to game (cannot drag overlay)
-  // enabled=false → overlay receives mouse (can drag)
   overlayClickThrough = !!enabled;
   if (overlayWindow && !overlayWindow.isDestroyed()) {
     if (overlayClickThrough) {
@@ -259,8 +257,12 @@ function startBackend() {
   );
 
   ipcMain.handle("capture-screen", async (_e, options = {}) => {
-    const maxWidth = options.maxWidth || 1920;
-    const maxHeight = options.maxHeight || 1080;
+    const disp = screen.getPrimaryDisplay();
+    const dsize = (disp && disp.size) || { width: 1920, height: 1080 };
+    const maxWidth =
+      options.maxWidth || Math.min(3840, Math.max(1920, dsize.width));
+    const maxHeight =
+      options.maxHeight || Math.min(2160, Math.max(1080, dsize.height));
 
     let overlayWasVisible = false;
     if (overlayWindow && !overlayWindow.isDestroyed() && overlayWindow.isVisible()) {
