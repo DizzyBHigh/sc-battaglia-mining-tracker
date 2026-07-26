@@ -143,6 +143,7 @@ async function loadMissions() {
   }
   renderMissions();
   populateOcrMissionSelect();
+  populateAddReqControls();
   loadStats();
   loadHistory();
   checkRecentCompletes();
@@ -436,12 +437,59 @@ async function clearActedLog() {
   loadActedLog();
 }
 
+async function addRequirementToMission() {
+  var mid = document.getElementById("add-req-mission").value;
+  var resource = document.getElementById("add-req-resource").value;
+  var count = parseInt(document.getElementById("add-req-count").value, 10) || 1;
+  if (!mid) { toast("Select an active mission"); return; }
+  if (!resource) { toast("Select a resource"); return; }
+  if (count < 1) { toast("Count must be at least 1"); return; }
+  var r = await fetch("/api/mission/" + mid + "/requirement", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ resource: resource, count: count }),
+  });
+  var data = await r.json();
+  if (data.error) { toast("Error: " + data.error); return; }
+  toast("Added " + count + "× " + resource + " to mission");
+  document.getElementById("add-req-count").value = "1";
+  loadMissions();
+}
+
+function populateAddReqControls() {
+  var resSel = document.getElementById("add-req-resource");
+  var misSel = document.getElementById("add-req-mission");
+  if (resSel) {
+    var prev = resSel.value;
+    var all = window.RESOURCES || [];
+    resSel.innerHTML = all.map(function (r) {
+      var sig = (window.SIGNATURES || {})[r];
+      var label = sig != null ? r + " (" + sig + ")" : r;
+      return '<option value="' + r + '">' + label + "</option>";
+    }).join("");
+    if (prev && all.indexOf(prev) >= 0) resSel.value = prev;
+  }
+  if (misSel) {
+    var prevM = misSel.value;
+    var active = missionsCache.filter(function (m) {
+      return m.status === "active" && isMiningScanTitle(m.title);
+    });
+    misSel.innerHTML = '<option value="">— select mission —</option>' +
+      active.map(function (m) {
+        return '<option value="' + m.mission_id + '">' +
+          escapeHtml((m.title || "").slice(0, 42)) + " (" + m.mission_id.slice(0, 8) + ")</option>";
+      }).join("");
+    if (prevM) misSel.value = prevM;
+  }
+}
+
 async function initResources() {
   try {
     window.RESOURCES = await (await fetch("/api/resources")).json();
     try { window.SIGNATURES = await (await fetch("/api/signatures")).json(); }
     catch (_) { window.SIGNATURES = {}; }
     refreshScanDropdown();
+    populateAddReqControls();
   } catch (e) { console.error(e); }
 }
 
@@ -593,6 +641,7 @@ window.pushStatus = pushStatus;
 window.toast = toast;
 window.loadActedLog = loadActedLog;
 window.clearActedLog = clearActedLog;
+window.addRequirementToMission = addRequirementToMission;
 
 initResources().then(function () { loadMissions(); });
 setInterval(loadMissions, 8000);
