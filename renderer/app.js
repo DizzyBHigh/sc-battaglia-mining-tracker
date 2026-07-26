@@ -6,6 +6,10 @@ var autoOcrBusy = false;
 var autoOcrAttempted = new Set();
 var tesseractWorker = null;
 
+function isMiningScanTitle(title) {
+  return /mining|scan|ore/i.test(String(title || ""));
+}
+
 async function pushStatus(message, phase) {
   try {
     await fetch("/api/status", {
@@ -58,9 +62,11 @@ function fmtTime(iso) {
 
 function sigLabel(resource) {
   var sig = (window.SIGNATURES || {})[resource];
-  return sig != null
-    ? ' <span style="color:var(--accent);font-size:0.8em;font-weight:600">RS ' + sig + "</span>"
-    : "";
+  if (sig == null) return "";
+  var parts = [];
+  for (var i = 1; i <= 5; i++) parts.push(sig * i);
+  return ' <span style="color:var(--accent);font-size:0.75em;font-weight:600" title="Cluster RS">' +
+    "(" + parts.join(" · ") + ")</span>";
 }
 
 async function loadStats() {
@@ -81,8 +87,23 @@ async function loadStats() {
   if (!keys.length) {
     box.innerHTML = '<div class="empty">No active requirements</div>';
   } else {
+    var sigMap = window.SIGNATURES || {};
+    var detailed = s.remaining_detailed || {};
     box.innerHTML = keys.map(function (k) {
-      return '<div class="req-item"><span>' + k + "</span><strong>" + rem[k] + "</strong></div>";
+      var n = rem[k];
+      var base = (detailed[k] && detailed[k].signature != null)
+        ? detailed[k].signature
+        : sigMap[k];
+      var cluster = (detailed[k] && detailed[k].signatures) || null;
+      if (!cluster && base != null) {
+        cluster = [];
+        for (var i = 1; i <= 5; i++) cluster.push(base * i);
+      }
+      var sigPart = cluster && cluster.length
+        ? " (" + cluster.join(" · ") + ")"
+        : "";
+      return '<div class="req-item"><span>' + k + " <strong>" + n + "</strong>" +
+        '<span style="color:var(--accent);font-size:0.85em">' + sigPart + "</span></span></div>";
     }).join("");
   }
 }
@@ -94,6 +115,7 @@ async function loadMissions() {
     var m = missionsCache[i];
     if (m.status === "active" && !seenMissionIds.has(m.mission_id)) {
       seenMissionIds.add(m.mission_id);
+      if (!isMiningScanTitle(m.title)) continue;
       if (!Object.keys(m.requirements || {}).length) {
         populateOcrMissionSelect();
         autoOcrForMission(m.mission_id);
@@ -130,21 +152,24 @@ function renderMissions() {
         var done = need > 0 && have >= need;
         var left = Math.max(0, need - have);
         return '<div class="req-item ' + (done ? "done" : "") + '">' +
-          '<span class="req-name">' + escapeHtml(r) + sigLabel(r) + "</span>" +
+          '<span class="req-name">' + escapeHtml(r) + " <strong>" + left + "</strong>" + sigLabel(r) + "</span>" +
           '<span class="req-counts"><strong>' + have + '</strong><span style="color:var(--muted)"> / ' + need + "</span>" +
-          (!done && m.status === "active" ? '<span class="req-left">' + left + " left</span>" : "") +
           (done ? '<span class="req-left" style="color:var(--green)">done</span>' : "") +
           "</span></div>";
       }).join("") + "</div>";
     } else if (m.status === "active") {
-      body = '<div class="empty" style="padding:0.6rem 0">No items to scan yet - open DETAILS and press <strong>Re-OCR</strong>.</div>';
+      body = isMiningScanTitle(m.title)
+        ? '<div class="empty" style="padding:0.6rem 0">No items to scan yet - open DETAILS and press <strong>Re-OCR</strong>.</div>'
+        : '<div class="empty" style="padding:0.6rem 0">Not a mining/scan/ore contract — scans will not apply.</div>';
     } else {
       body = '<div class="empty" style="padding:0.5rem">No requirements recorded</div>';
     }
     var actions = "";
     if (m.status === "active") {
       actions = '<div style="margin-top:0.55rem;display:flex;gap:0.4rem;flex-wrap:wrap">' +
-        '<button type="button" class="btn btn-orange btn-sm" data-mid="' + m.mission_id + '" data-act="reocr">Re-OCR</button>' +
+        (isMiningScanTitle(m.title)
+          ? '<button type="button" class="btn btn-orange btn-sm" data-mid="' + m.mission_id + '" data-act="reocr">Re-OCR</button>'
+          : "") +
         '<button type="button" class="btn btn-ghost btn-sm" data-mid="' + m.mission_id + '" data-act="abandon">Abandon</button></div>';
     }
     return '<div class="mission ' + cls + '"><div class="mission-header"><div>' +
@@ -205,7 +230,9 @@ async function recordScan() {
 function populateOcrMissionSelect() {
   var sel = document.getElementById("ocr-mission");
   if (!sel) return;
-  var active = missionsCache.filter(function (m) { return m.status === "active"; });
+  var active = missionsCache.filter(function (m) {
+    return m.status === "active" && isMiningScanTitle(m.title);
+  });
   var cur = sel.value;
   sel.innerHTML = '<option value="">- most recent active -</option>' +
     active.map(function (m) {
@@ -218,7 +245,9 @@ function populateOcrMissionSelect() {
 function selectedOcrMissionId() {
   var mid = document.getElementById("ocr-mission").value;
   if (mid) return mid;
-  var active = missionsCache.filter(function (m) { return m.status === "active"; });
+  var active = missionsCache.filter(function (m) {
+    return m.status === "active" && isMiningScanTitle(m.title);
+  });
   return active.length ? active[0].mission_id : "";
 }
 
@@ -358,7 +387,7 @@ function refreshScanDropdown() {
   var needed = {};
   for (var i = 0; i < missionsCache.length; i++) {
     var m = missionsCache[i];
-    if (m.status !== "active") continue;
+    if (m.status !== "active" || !isMiningScanTitle(m.title)) continue;
     var rem = m.remaining || {};
     Object.keys(rem).forEach(function (k) {
       if (rem[k] > 0) needed[k] = (needed[k] || 0) + rem[k];
@@ -475,6 +504,7 @@ async function autoOcrForMission(missionId, force) {
   }
 }
 
+window.isMiningScanTitle = isMiningScanTitle;
 window.pickLog = pickLog;
 window.toggleOverlay = toggleOverlay;
 window.onOverlayDragCheckbox = onOverlayDragCheckbox;
