@@ -33,14 +33,29 @@
       "package.json"
     ],
     "win": {
-      "target": ["nsis", "portable"]
+      "target": [
+        {
+          "target": "nsis",
+          "arch": ["x64"]
+        },
+        {
+          "target": "portable",
+          "arch": ["x64"]
+        }
+      ]
     },
     "nsis": {
       "oneClick": false,
-      "allowToChangeInstallationDirectory": true
+      "allowToChangeInstallationDirectory": true,
+      "artifactName": "${name}-${version}-setup.${ext}"
+    },
+    "artifactName": "${name}-${version}-${os}-${arch}.${ext}",
+    "portable": {
+      "artifactName": "${name}-${version}-portable.${ext}"
     }
   },
   "engines": {
     "node": ">=22"
-  }
+  },
+  "productName": "SC Battaglia Mining Tracker"
 }
