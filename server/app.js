@@ -6,7 +6,13 @@ const fs = require("fs");
 const { MissionStore, COMMON_RESOURCES } = require("./missionStore");
 const { LogParser } = require("./logParser");
 const { parseRequirements, parseOcrResult } = require("./ocrParse");
-const { RESOURCE_SIGNATURES, signatureFor } = require("./signatures");
+const {
+  RESOURCE_SIGNATURES,
+  signatureFor,
+  signaturesForClusters,
+  formatClusterSignatures,
+  DEFAULT_CLUSTER_MAX,
+} = require("./signatures");
 
 function createServer(options = {}) {
   const dataPath =
@@ -184,9 +190,14 @@ function createServer(options = {}) {
     }
     const remaining_detailed = {};
     for (const [r, n] of Object.entries(remaining)) {
+      const base = signatureFor(r);
+      const clusters = signaturesForClusters(r, DEFAULT_CLUSTER_MAX);
       remaining_detailed[r] = {
         count: n,
-        signature: signatureFor(r),
+        signature: base,
+        signatures: clusters.map((c) => c.signature),
+        clusters,
+        signatures_label: formatClusterSignatures(r, DEFAULT_CLUSTER_MAX),
       };
     }
     res.json({
