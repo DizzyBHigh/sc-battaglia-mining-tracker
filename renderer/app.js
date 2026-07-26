@@ -138,7 +138,6 @@ async function loadMissions() {
 function renderMissions() {
   var list = document.getElementById("mission-list");
   var items = missionsCache;
-  // Only show mining / scan / ore / gathering contracts as cards
   items = items.filter(function (m) { return isMiningScanTitle(m.title); });
   if (currentFilter === "active") items = items.filter(function (m) { return m.status === "active"; });
   if (currentFilter === "completed") items = items.filter(function (m) { return m.status === "completed"; });
@@ -160,10 +159,14 @@ function renderMissions() {
         var done = need > 0 && have >= need;
         var left = Math.max(0, need - have);
         return '<div class="req-item ' + (done ? "done" : "") + '">' +
-          '<span class="req-name">' + escapeHtml(r) + " <strong>" + left + "</strong>" + sigLabel(r) + "</span>" +
-          '<span class="req-counts"><strong>' + have + '</strong><span style="color:var(--muted)"> / ' + need + "</span>" +
-          (done ? '<span class="req-left" style="color:var(--green)">done</span>' : "") +
-          "</span></div>";
+          '<div class="req-line-name">' + escapeHtml(r) + sigLabel(r) + "</div>" +
+          '<div class="req-line-stats">' +
+            "Required <strong>" + need + "</strong>" +
+            ' <span class="sep">|</span> ' +
+            "<strong>" + have + "</strong> Scanned" +
+            ' <span class="sep">|</span> ' +
+            '<strong class="' + (left === 0 ? "ok" : "left") + '">' + left + "</strong> Remaining" +
+          "</div></div>";
       }).join("") + "</div>";
     } else if (m.status === "active") {
       body = '<div class="empty" style="padding:0.6rem 0">No items to scan yet - open DETAILS and press <strong>Re-OCR</strong>.</div>';
