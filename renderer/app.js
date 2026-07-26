@@ -35,9 +35,12 @@ function setFilter(btn) {
 }
 
 function escapeHtml(s) {
-  return String(s).replace(/[&<>"']/g, (c) =>
-    ({ "&": "&", "<": "<", ">": ">", '"': """, "'": "&#39;" }[c])
-  );
+  return String(s)
+    .replace(/&/g, "&")
+    .replace(/</g, "<")
+    .replace(/>/g, ">")
+    .replace(/"/g, """)
+    .replace(/'/g, "&#39;");
 }
 
 function fmtTime(iso) {
@@ -50,15 +53,15 @@ function fmtTime(iso) {
       hour: "2-digit",
       minute: "2-digit",
     });
-  } catch {
-    return iso.slice(0, 16);
+  } catch (_) {
+    return String(iso).slice(0, 16);
   }
 }
 
 function sigLabel(resource) {
   const sig = (window.SIGNATURES || {})[resource];
   return sig != null
-    ? ` <span style="color:var(--accent);font-size:0.8em;font-weight:600">RS ${sig}</span>`
+    ? ' <span style="color:var(--accent);font-size:0.8em;font-weight:600">RS ' + sig + "</span>"
     : "";
 }
 
@@ -77,11 +80,15 @@ async function loadStats() {
   const box = document.getElementById("remaining-totals");
   const rem = s.remaining_totals || {};
   const keys = Object.keys(rem).sort();
-  if (!keys.length) box.innerHTML = '<div class="empty">No active requirements</div>';
-  else
+  if (!keys.length) {
+    box.innerHTML = '<div class="empty">No active requirements</div>';
+  } else {
     box.innerHTML = keys
-      .map((k) => `<div class="req-item"><span>${k}</span><strong>${rem[k]}</strong></div>`)
+      .map(function (k) {
+        return '<div class="req-item"><span>' + k + "</span><strong>" + rem[k] + "</strong></div>";
+      })
       .join("");
+  }
 }
 
 async function loadMissions() {
@@ -113,7 +120,7 @@ function renderMissions() {
     return;
   }
   list.innerHTML = items
-    .map((m) => {
+    .map(function (m) {
       const reqs = m.requirements || {};
       const prog = m.progress || {};
       const keys = Object.keys(reqs).sort();
@@ -122,38 +129,73 @@ function renderMissions() {
       let body = "";
       if (keys.length) {
         body =
-          `<div class="req-grid">` +
+          '<div class="req-grid">' +
           keys
-            .map((r) => {
+            .map(function (r) {
               const need = reqs[r] || 0;
               const have = prog[r] || 0;
               const done = need > 0 && have >= need;
               const left = Math.max(0, need - have);
-              return `<div class="req-item ${done ? "done" : ""}">
-              <span class="req-name">${escapeHtml(r)}${sigLabel(r)}</span>
-              <span class="req-counts"><strong>${have}</strong><span style="color:var(--muted)"> / ${need}</span>
-              ${!done && m.status === "active" ? `<span class="req-left">${left} left</span>` : ""}
-              ${done ? `<span class="req-left" style="color:var(--green)">done</span>` : ""}</span></div>`;
+              return (
+                '<div class="req-item ' +
+                (done ? "done" : "") +
+                '">' +
+                '<span class="req-name">' +
+                escapeHtml(r) +
+                sigLabel(r) +
+                "</span>" +
+                '<span class="req-counts"><strong>' +
+                have +
+                '</strong><span style="color:var(--muted)"> / ' +
+                need +
+                "</span>" +
+                (!done && m.status === "active"
+                  ? '<span class="req-left">' + left + " left</span>"
+                  : "") +
+                (done ? '<span class="req-left" style="color:var(--green)">done</span>' : "") +
+                "</span></div>"
+              );
             })
             .join("") +
-          `</div>`;
+          "</div>";
       } else if (m.status === "active") {
-        body = `<div class="empty" style="padding:0.6rem 0">No items to scan yet — open DETAILS and press <strong>Re-OCR</strong>.</div>`;
+        body =
+          '<div class="empty" style="padding:0.6rem 0">No items to scan yet — open DETAILS and press <strong>Re-OCR</strong>.</div>';
       } else {
-        body = `<div class="empty" style="padding:0.5rem">No requirements recorded</div>`;
+        body = '<div class="empty" style="padding:0.5rem">No requirements recorded</div>';
       }
       const actions =
         m.status === "active"
-          ? `<div style="margin-top:0.55rem;display:flex;gap:0.4rem;flex-wrap:wrap">
-              <button class="btn btn-orange btn-sm" onclick="ocrThisMission('${m.mission_id}')">Re-OCR</button>
-              <button class="btn btn-ghost btn-sm" onclick="abandon('${m.mission_id}')">Abandon</button></div>`
+          ? '<div style="margin-top:0.55rem;display:flex;gap:0.4rem;flex-wrap:wrap">' +
+            '<button class="btn btn-orange btn-sm" onclick="ocrThisMission(\'' +
+            m.mission_id +
+            "')\">Re-OCR</button>" +
+            '<button class="btn btn-ghost btn-sm" onclick="abandon(\'' +
+            m.mission_id +
+            "')\">Abandon</button></div>"
           : "";
-      return `<div class="mission ${cls}"><div class="mission-header"><div>
-            <div class="mission-title">${escapeHtml(m.title)}</div>
-            <div class="mission-meta">${m.mission_id.slice(0, 8)}… · accepted ${fmtTime(m.accepted_at)}
-            ${m.completed_at ? " · done " + fmtTime(m.completed_at) : ""}</div></div>
-            <span style="font-size:0.75rem;color:${m.status === "completed" ? "var(--green)" : "var(--orange)"}">${m.status}</span>
-          </div>${body}${actions}</div>`;
+      return (
+        '<div class="mission ' +
+        cls +
+        '"><div class="mission-header"><div>' +
+        '<div class="mission-title">' +
+        escapeHtml(m.title) +
+        "</div>" +
+        '<div class="mission-meta">' +
+        m.mission_id.slice(0, 8) +
+        "… · accepted " +
+        fmtTime(m.accepted_at) +
+        (m.completed_at ? " · done " + fmtTime(m.completed_at) : "") +
+        "</div></div>" +
+        '<span style="font-size:0.75rem;color:' +
+        (m.status === "completed" ? "var(--green)" : "var(--orange)") +
+        '">' +
+        m.status +
+        "</span></div>" +
+        body +
+        actions +
+        "</div>"
+      );
     })
     .join("");
   refreshScanDropdown();
@@ -161,7 +203,7 @@ function renderMissions() {
 
 async function abandon(mid) {
   if (!confirm("Mark this mission as abandoned?")) return;
-  await fetch(`/api/mission/${mid}`, {
+  await fetch("/api/mission/" + mid, {
     method: "POST",
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify({ status: "abandoned" }),
@@ -183,9 +225,9 @@ async function recordScan() {
     return;
   }
   const appliedN = Object.keys(data.applied || {}).length;
-  let msg = `Scanned ${count}× ${resource} → applied to ${appliedN} mission(s)`;
+  let msg = "Scanned " + count + "× " + resource + " → applied to " + appliedN + " mission(s)";
   if (data.newly_completed && data.newly_completed.length)
-    msg += ` · ${data.newly_completed.length} completed!`;
+    msg += " · " + data.newly_completed.length + " completed!";
   toast(msg);
   document.getElementById("complete-banner").style.display = "none";
   loadMissions();
@@ -199,10 +241,17 @@ function populateOcrMissionSelect() {
   sel.innerHTML =
     '<option value="">— most recent active —</option>' +
     active
-      .map(
-        (m) =>
-          `<option value="${m.mission_id}">${escapeHtml(m.title).slice(0, 40)} (${m.mission_id.slice(0, 8)})</option>`
-      )
+      .map(function (m) {
+        return (
+          '<option value="' +
+          m.mission_id +
+          '">' +
+          escapeHtml(m.title).slice(0, 40) +
+          " (" +
+          m.mission_id.slice(0, 8) +
+          ")</option>"
+        );
+      })
       .join("");
   if (cur) sel.value = cur;
 }
@@ -217,13 +266,15 @@ function selectedOcrMissionId() {
 async function getTesseractWorker() {
   if (tesseractWorker) return tesseractWorker;
   const prog = document.getElementById("ocr-progress");
-  prog.style.display = "block";
-  prog.textContent = "Downloading Tesseract.js model (first time only)…";
+  if (prog) {
+    prog.style.display = "block";
+    prog.textContent = "Downloading Tesseract.js model (first time only)…";
+  }
   tesseractWorker = await Tesseract.createWorker("eng", 1, {
-    logger: (m) => {
-      if (m.status === "recognizing text") {
+    logger: function (m) {
+      if (m.status === "recognizing text" && prog) {
         const pct = m.progress != null ? Math.round(m.progress * 100) : 0;
-        prog.textContent = `Recognizing text… ${pct}%`;
+        prog.textContent = "Recognizing text… " + pct + "%";
       }
     },
   });
@@ -234,45 +285,54 @@ async function getTesseractWorker() {
 async function ocrImageSource(source) {
   const box = document.getElementById("ocr-result");
   const prog = document.getElementById("ocr-progress");
-  box.textContent = "";
-  prog.style.display = "block";
-  prog.textContent = "Starting OCR…";
+  if (box) box.textContent = "";
+  if (prog) {
+    prog.style.display = "block";
+    prog.textContent = "Starting OCR…";
+  }
   await pushStatus("Performing OCR — please leave the contract screen open.", "ocr");
   try {
     const worker = await getTesseractWorker();
-    prog.textContent = "Recognizing text…";
-    const {
-      data: { text },
-    } = await worker.recognize(source);
-    prog.style.display = "none";
+    if (prog) prog.textContent = "Recognizing text…";
+    const result = await worker.recognize(source);
+    const text = result.data.text;
+    if (prog) prog.style.display = "none";
     const mid = selectedOcrMissionId();
     const r = await fetch("/api/ocr/parse", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ text, mission_id: mid || null, apply_progress: true }),
+      body: JSON.stringify({ text: text, mission_id: mid || null, apply_progress: true }),
     });
     const data = await r.json();
     if (data.error) {
-      box.textContent = "Error: " + data.error;
-      box.style.color = "var(--red)";
+      if (box) {
+        box.textContent = "Error: " + data.error;
+        box.style.color = "var(--red)";
+      }
       return;
     }
     const reqs = data.requirements || {};
     const keys = Object.keys(reqs);
     if (!keys.length) {
-      box.textContent = "No requirements detected.";
-      box.style.color = "var(--orange)";
+      if (box) {
+        box.textContent = "No requirements detected.";
+        box.style.color = "var(--orange)";
+      }
       return;
     }
-    const summary = keys.map((k) => `${k}=${reqs[k]}`).join(", ");
-    box.innerHTML = `<strong style="color:var(--green)">Found:</strong> ${summary}`;
+    const summary = keys.map(function (k) { return k + "=" + reqs[k]; }).join(", ");
+    if (box) {
+      box.innerHTML = '<strong style="color:var(--green)">Found:</strong> ' + summary;
+    }
     toast("OCR: " + summary);
     await pushStatus("OCR complete — you can close this contract or look for a new one.", "ocr_done");
     loadMissions();
   } catch (e) {
-    prog.style.display = "none";
-    box.textContent = "OCR error: " + e;
-    box.style.color = "var(--red)";
+    if (prog) prog.style.display = "none";
+    if (box) {
+      box.textContent = "OCR error: " + e;
+      box.style.color = "var(--red)";
+    }
     toast("OCR failed: " + e);
   }
 }
@@ -281,7 +341,7 @@ async function ocrClipboard() {
   try {
     const items = await navigator.clipboard.read();
     for (const item of items) {
-      const type = item.types.find((t) => t.startsWith("image/"));
+      const type = item.types.find(function (t) { return t.startsWith("image/"); });
       if (type) {
         await ocrImageSource(await item.getType(type));
         return;
@@ -299,7 +359,7 @@ async function ocrUpload(input) {
   input.value = "";
 }
 
-document.addEventListener("paste", async (ev) => {
+document.addEventListener("paste", async function (ev) {
   const items = ev.clipboardData && ev.clipboardData.items;
   if (!items) return;
   for (const item of items) {
@@ -324,10 +384,19 @@ async function loadHistory() {
     .slice()
     .reverse()
     .slice(0, 15)
-    .map(
-      (e) =>
-        `<div class="history-item"><strong>${e.count}× ${e.resource}</strong> → ${e.applied_to.length} mission(s)<br/><span style="font-size:0.7rem">${fmtTime(e.timestamp)}</span></div>`
-    )
+    .map(function (e) {
+      return (
+        '<div class="history-item"><strong>' +
+        e.count +
+        "× " +
+        e.resource +
+        "</strong> → " +
+        e.applied_to.length +
+        ' mission(s)<br/><span style="font-size:0.7rem">' +
+        fmtTime(e.timestamp) +
+        "</span></div>"
+      );
+    })
     .join("");
 }
 
@@ -340,7 +409,13 @@ async function checkRecentCompletes() {
   if (age < 120000) {
     document.getElementById("complete-banner").style.display = "block";
     document.getElementById("complete-msg").textContent =
-      ` ${list.filter((x) => Date.now() - new Date(x.timestamp).getTime() < 120000).length} objective(s) finished around ${fmtTime(latest.timestamp)}.`;
+      " " +
+      list.filter(function (x) {
+        return Date.now() - new Date(x.timestamp).getTime() < 120000;
+      }).length +
+      " objective(s) finished around " +
+      fmtTime(latest.timestamp) +
+      ".";
   }
 }
 
@@ -369,22 +444,42 @@ function refreshScanDropdown() {
       if (v > 0) needed[k] = (needed[k] || 0) + v;
     }
   }
-  const needKeys = Object.keys(needed).sort((a, b) => needed[b] - needed[a] || a.localeCompare(b));
+  const needKeys = Object.keys(needed).sort(function (a, b) {
+    return needed[b] - needed[a] || a.localeCompare(b);
+  });
   const all = window.RESOURCES || [];
-  const rest = all.filter((r) => !needed[r]);
+  const rest = all.filter(function (r) { return !needed[r]; });
   let html = "";
-  if (needKeys.length)
+  if (needKeys.length) {
     html +=
-      `<optgroup label="Still needed">` +
-      needKeys.map((r) => `<option value="${r}">${r} (${needed[r]} left)</option>`).join("") +
-      `</optgroup>`;
+      '<optgroup label="Still needed">' +
+      needKeys
+        .map(function (r) {
+          return '<option value="' + r + '">' + r + " (" + needed[r] + " left)</option>";
+        })
+        .join("") +
+      "</optgroup>";
+  }
   html +=
-    `<optgroup label="All resources">` +
-    (needKeys.length ? rest : all).map((r) => `<option value="${r}">${r}</option>`).join("") +
-    `</optgroup>`;
-  sel.innerHTML = html || all.map((r) => `<option value="${r}">${r}</option>`).join("");
-  if (prev && [...sel.options].some((o) => o.value === prev)) sel.value = prev;
-  else if (needKeys.length) sel.value = needKeys[0];
+    '<optgroup label="All resources">' +
+    (needKeys.length ? rest : all)
+      .map(function (r) {
+        return '<option value="' + r + '">' + r + "</option>";
+      })
+      .join("") +
+    "</optgroup>";
+  sel.innerHTML =
+    html ||
+    all
+      .map(function (r) {
+        return '<option value="' + r + '">' + r + "</option>";
+      })
+      .join("");
+  if (prev && Array.prototype.some.call(sel.options, function (o) { return o.value === prev; })) {
+    sel.value = prev;
+  } else if (needKeys.length) {
+    sel.value = needKeys[0];
+  }
 }
 
 async function pickLog() {
@@ -394,7 +489,9 @@ async function pickLog() {
       toast("Log saved — watching: " + p);
       loadStats();
     }
-  } else toast("Log picker only available in Electron");
+  } else {
+    toast("Log picker only available in Electron");
+  }
 }
 
 async function toggleOverlay() {
@@ -414,10 +511,11 @@ async function onOverlayDragCheckbox(chk) {
   toast(chk.checked ? "Overlay drag ON" : "Overlay drag OFF");
 }
 
-async function autoOcrForMission(missionId, force = false) {
+async function autoOcrForMission(missionId, force) {
+  if (force === undefined) force = false;
   if (!missionId) return;
   if (autoOcrBusy) {
-    setTimeout(() => autoOcrForMission(missionId, force), 2500);
+    setTimeout(function () { autoOcrForMission(missionId, force); }, 2500);
     return;
   }
   if (!force && autoOcrAttempted.has(missionId)) return;
@@ -435,21 +533,22 @@ async function autoOcrForMission(missionId, force = false) {
       prog.textContent = force ? "Re-OCR: capturing screen…" : "Auto OCR: capturing screen…";
     }
     await pushStatus("Performing OCR — please leave the contract screen open.", "ocr");
-    if (!force) await new Promise((r) => setTimeout(r, 800));
+    if (!force) await new Promise(function (r) { setTimeout(r, 800); });
     const cap = await window.electronAPI.captureScreen({
-      maxWidth: 1600,
-      maxHeight: 900,
+      maxWidth: 1920,
+      maxHeight: 1080,
       crop: { x: 0.28, y: 0.1, width: 0.7, height: 0.75 },
+      _bust: Date.now(),
     });
+    if (!cap || !cap.dataUrl) throw new Error("Screen capture returned no image");
     if (prog) prog.textContent = "Recognizing text…";
     const worker = await getTesseractWorker();
-    const {
-      data: { text },
-    } = await worker.recognize(cap.dataUrl);
+    const result = await worker.recognize(cap.dataUrl);
+    const text = result.data.text;
     const r = await fetch("/api/ocr/parse", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ text, mission_id: missionId, apply_progress: true }),
+      body: JSON.stringify({ text: text, mission_id: missionId, apply_progress: true }),
     });
     const data = await r.json();
     if (prog) prog.style.display = "none";
@@ -464,8 +563,8 @@ async function autoOcrForMission(missionId, force = false) {
       toast("OCR missed the panel — try again");
       return;
     }
-    const summary = keys.map((k) => k + "=" + reqs[k]).join(", ");
-    if (box) box.innerHTML = `<strong style="color:var(--green)">OCR:</strong> ${summary}`;
+    const summary = keys.map(function (k) { return k + "=" + reqs[k]; }).join(", ");
+    if (box) box.innerHTML = '<strong style="color:var(--green)">OCR:</strong> ' + summary;
     toast((force ? "Re-OCR: " : "Auto OCR: ") + summary);
     await pushStatus("OCR complete — you can close this contract or look for a new one.", "ocr_done");
     loadMissions();
@@ -478,7 +577,21 @@ async function autoOcrForMission(missionId, force = false) {
   }
 }
 
-initResources().then(() => {
+window.pickLog = pickLog;
+window.toggleOverlay = toggleOverlay;
+window.onOverlayDragCheckbox = onOverlayDragCheckbox;
+window.setFilter = setFilter;
+window.loadMissions = loadMissions;
+window.recordScan = recordScan;
+window.ocrClipboard = ocrClipboard;
+window.ocrUpload = ocrUpload;
+window.abandon = abandon;
+window.autoOcrForMission = autoOcrForMission;
+window.getTesseractWorker = getTesseractWorker;
+window.pushStatus = pushStatus;
+window.toast = toast;
+
+initResources().then(function () {
   loadMissions();
 });
 setInterval(loadMissions, 8000);
