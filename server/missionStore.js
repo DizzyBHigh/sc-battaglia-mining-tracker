@@ -4,9 +4,11 @@ const fs = require("fs");
 const path = require("path");
 
 const COMMON_RESOURCES = [
-  "Aluminium", "Bexalite", "Copper", "Gold", "Hadanite", "Ice", "Iron",
-  "Laranite", "Quantanium", "Savrillium", "Taranite", "Titanium", "Torite",
-  "Agricium", "Hephaestanite",
+  "Agricium", "Aluminium", "Aslarite", "Beryl", "Bexalite", "Borase",
+  "Copper", "Corundum", "Gold", "Hephaestanite", "Ice", "Iron",
+  "Laranite", "Lindinium", "Ouratite", "Quantanium", "Quartz", "Riccite",
+  "Savrilium", "Silicon", "Stileron", "Taranite", "Tin", "Titanium",
+  "Torite", "Tungsten",
 ];
 
 /** Battaglia ore-scan style missions only (title keywords) */
@@ -152,6 +154,23 @@ class MissionStore {
     if (m.isFullyComplete()) {
       m.status = "completed";
       m.completed_at = m.completed_at || new Date().toISOString();
+    }
+    this.save();
+    return true;
+  }
+
+  /** Add or increase a single resource requirement on a mission */
+  addRequirement(missionId, resource, count = 1) {
+    const m = this.missions[missionId];
+    if (!m) return false;
+    const name = String(resource || "").trim();
+    const n = parseInt(count, 10);
+    if (!name || !(n > 0)) return false;
+    m.requirements[name] = (m.requirements[name] || 0) + n;
+    if (m.progress[name] == null) m.progress[name] = 0;
+    if (m.isFullyComplete() && m.status === "active") {
+      m.status = "completed";
+      m.completed_at = new Date().toISOString();
     }
     this.save();
     return true;
