@@ -3,13 +3,13 @@
 /**
  * Base RS (resource signature) for 1 rock in a cluster.
  * Cluster ping ≈ base × rock count (*1, *2, *3, …).
- * Source: community SC mining signature tables.
  */
 const RESOURCE_SIGNATURES = {
   Quantanium: 3170,
   Quantainium: 3170,
   Stileron: 3185,
   Savrilium: 3200,
+  Savrillium: 3200,
   Ouratite: 3370,
   Riccite: 3385,
   Lindinium: 3400,
@@ -47,7 +47,9 @@ for (const [name, sig] of Object.entries(RESOURCE_SIGNATURES)) {
         ? "Aluminium"
         : name === "Quantainium"
           ? "Quantanium"
-          : name;
+          : name === "Savrillium"
+            ? "Savrilium"
+            : name;
   }
 }
 
