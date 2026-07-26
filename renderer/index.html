@@ -76,6 +76,16 @@ footer{text-align:center;color:var(--muted);font-size:.75rem;padding:1rem}
       <button class="btn btn-green" onclick="recordScan()">Record Scan</button>
     </div>
   </div>
+  <div class="card" id="add-req-card">
+    <h2>Add resource to mission <span style="font-size:.75rem;color:var(--muted);font-weight:400">manual</span></h2>
+    <p style="font-size:.8rem;color:var(--muted);margin-bottom:.55rem">Attach a scan requirement to an active mission (count = how many of that resource to scan).</p>
+    <div class="scan-row">
+      <select id="add-req-resource" style="flex:1.3" title="Resource"></select>
+      <input type="number" id="add-req-count" value="1" min="1" max="50" style="width:4.5rem" title="How many"/>
+      <select id="add-req-mission" style="flex:1.5" title="Active mission"><option value="">— select mission —</option></select>
+      <button type="button" class="btn btn-sm" onclick="addRequirementToMission()">Add to mission</button>
+    </div>
+  </div>
   <div class="card" id="ocr-card">
     <h2>OCR Contract Screen <span style="font-size:.75rem;color:var(--muted);font-weight:400">Tesseract.js</span></h2>
     <p style="font-size:.8rem;color:var(--muted);margin-bottom:.6rem">Leave contract DETAILS open for screen OCR. Or use Clipboard / Upload.</p>
@@ -113,10 +123,10 @@ footer{text-align:center;color:var(--muted);font-size:.75rem;padding:1rem}
   <div class="card"><h2>How to use</h2>
     <ol style="font-size:.8rem;color:var(--muted);padding-left:1.1rem">
       <li>Accept missions in-game or use <strong>New contract from screen</strong>.</li>
-      <li><strong>Re-OCR</strong> on a card captures the screen and refreshes requirements.</li>
+      <li>Use <strong>Add resource to mission</strong> if OCR misses a requirement.</li>
+      <li><strong>Re-OCR</strong> captures the screen and refreshes requirements.</li>
       <li>Record Scan applies shared progress across active missions.</li>
-      <li><strong>MissionEnded / Contract Complete</strong> in the game log auto-complete tracked missions.</li>
-      <li>Only titles containing mining / scan / ore / gathering appear as cards.</li>
+      <li><strong>MissionEnded / Contract Complete</strong> auto-complete tracked missions.</li>
     </ol>
   </div>
 </aside>
