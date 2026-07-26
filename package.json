@@ -3,7 +3,7 @@
   "version": "1.1.0",
   "description": "Star Citizen Battaglia mining mission tracker with shared progress and Tesseract.js OCR",
   "main": "main.js",
-  "author": "SC Miner",
+  "author": "DuhBuhHuh",
   "license": "MIT",
   "scripts": {
     "start": "electron .",
