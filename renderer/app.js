@@ -7,7 +7,7 @@ var autoOcrAttempted = new Set();
 var tesseractWorker = null;
 
 function isMiningScanTitle(title) {
-  return /mining|scan|ore/i.test(String(title || ""));
+  return /mining|scan|ore|gathering/i.test(String(title || ""));
 }
 
 async function pushStatus(message, phase) {
@@ -89,7 +89,13 @@ async function loadStats() {
   } else {
     var sigMap = window.SIGNATURES || {};
     var detailed = s.remaining_detailed || {};
-    box.innerHTML = keys.map(function (k) {
+    var missionN = s.remaining_mission_count != null
+      ? s.remaining_mission_count
+      : (s.active_count || 0);
+    var spread = '<div class="empty" style="margin-bottom:0.35rem;color:var(--muted)">' +
+      "Across <strong style=\"color:var(--text)\">" + missionN + "</strong> mission" +
+      (missionN === 1 ? "" : "s") + "</div>";
+    box.innerHTML = spread + keys.map(function (k) {
       var n = rem[k];
       var base = (detailed[k] && detailed[k].signature != null)
         ? detailed[k].signature
@@ -132,6 +138,8 @@ async function loadMissions() {
 function renderMissions() {
   var list = document.getElementById("mission-list");
   var items = missionsCache;
+  // Only show mining / scan / ore / gathering contracts as cards
+  items = items.filter(function (m) { return isMiningScanTitle(m.title); });
   if (currentFilter === "active") items = items.filter(function (m) { return m.status === "active"; });
   if (currentFilter === "completed") items = items.filter(function (m) { return m.status === "completed"; });
   if (!items.length) {
@@ -158,18 +166,14 @@ function renderMissions() {
           "</span></div>";
       }).join("") + "</div>";
     } else if (m.status === "active") {
-      body = isMiningScanTitle(m.title)
-        ? '<div class="empty" style="padding:0.6rem 0">No items to scan yet - open DETAILS and press <strong>Re-OCR</strong>.</div>'
-        : '<div class="empty" style="padding:0.6rem 0">Not a mining/scan/ore contract — scans will not apply.</div>';
+      body = '<div class="empty" style="padding:0.6rem 0">No items to scan yet - open DETAILS and press <strong>Re-OCR</strong>.</div>';
     } else {
       body = '<div class="empty" style="padding:0.5rem">No requirements recorded</div>';
     }
     var actions = "";
     if (m.status === "active") {
       actions = '<div style="margin-top:0.55rem;display:flex;gap:0.4rem;flex-wrap:wrap">' +
-        (isMiningScanTitle(m.title)
-          ? '<button type="button" class="btn btn-orange btn-sm" data-mid="' + m.mission_id + '" data-act="reocr">Re-OCR</button>'
-          : "") +
+        '<button type="button" class="btn btn-orange btn-sm" data-mid="' + m.mission_id + '" data-act="reocr">Re-OCR</button>' +
         '<button type="button" class="btn btn-ghost btn-sm" data-mid="' + m.mission_id + '" data-act="abandon">Abandon</button></div>';
     }
     return '<div class="mission ' + cls + '"><div class="mission-header"><div>' +
@@ -436,7 +440,7 @@ async function toggleOverlay() {
 async function onOverlayDragCheckbox(chk) {
   if (!window.electronAPI || !window.electronAPI.overlayClickThrough) return;
   await window.electronAPI.overlayClickThrough(!chk.checked);
-  toast(chk.checked ? "Overlay drag ON" : "Overlay drag OFF");
+  toast(chk.checked ? "Overlay drag ON – move then uncheck to play" : "Overlay drag OFF – mouse goes to the game");
 }
 
 async function autoOcrForMission(missionId, force) {
