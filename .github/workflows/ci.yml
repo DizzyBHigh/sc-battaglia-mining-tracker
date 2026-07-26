@@ -1,0 +1,42 @@
+name: CI
+
+on:
+  push:
+    branches: [main, master]
+  pull_request:
+    branches: [main, master]
+
+jobs:
+  check:
+    name: Install & syntax check
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: "20"
+          cache: npm
+
+      - name: Install dependencies
+        run: npm install
+
+      - name: Syntax check (Node modules)
+        run: |
+          node --check main.js
+          node --check preload.js
+          node --check server/app.js
+          node --check server/logParser.js
+          node --check server/missionStore.js
+          node --check server/ocrParse.js
+          node --check server/signatures.js
+
+      - name: Verify package entry points
+        run: |
+          test -f main.js
+          test -f preload.js
+          test -f renderer/index.html
+          test -f renderer/overlay.html
+          node -e "require('./package.json')"
