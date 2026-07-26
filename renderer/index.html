@@ -43,8 +43,8 @@ footer{text-align:center;color:var(--muted);font-size:.75rem;padding:1rem}
     <span>Scans: <strong id="stat-scans">–</strong></span>
     <button class="btn btn-ghost btn-sm" onclick="pickLog()">Log file…</button>
     <button class="btn btn-sm" id="btn-overlay" onclick="toggleOverlay()">Overlay</button>
-    <label style="font-size:.8rem;color:var(--muted);display:inline-flex;align-items:center;gap:.35rem;cursor:pointer">
-      <input type="checkbox" id="chk-overlay-drag" onchange="onOverlayDragCheckbox(this)"/>Allow drag overlay
+    <label style="font-size:.8rem;color:var(--muted);display:inline-flex;align-items:center;gap:.35rem;cursor:pointer" title="When checked, drag the overlay. Uncheck so clicks go to the game.">
+      <input type="checkbox" id="chk-overlay-drag" checked onchange="onOverlayDragCheckbox(this)"/>Allow drag overlay
     </label>
   </div>
   <div id="log-path-bar"><span class="log-label">Log</span><span id="log-path-text">–</span></div>
@@ -90,6 +90,7 @@ footer{text-align:center;color:var(--muted);font-size:.75rem;padding:1rem}
       <li>Accept missions in-game or use <strong>New contract from screen</strong>.</li>
       <li><strong>Re-OCR</strong> on a card captures the screen and refreshes requirements.</li>
       <li>Record Scan applies shared progress across active missions.</li>
+      <li>Only titles containing mining / scan / ore / gathering appear as cards.</li>
     </ol>
   </div>
 </aside>
