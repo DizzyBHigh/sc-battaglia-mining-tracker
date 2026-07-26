@@ -4,6 +4,7 @@ var seenMissionIds = new Set();
 var toastTimer = null;
 var autoOcrBusy = false;
 var autoOcrAttempted = new Set();
+var missionTitleCache = {};
 var tesseractWorker = null;
 
 function isMiningScanTitle(title) {
@@ -119,14 +120,26 @@ async function loadStats() {
 async function loadMissions() {
   var r = await fetch("/api/missions");
   missionsCache = await r.json();
+  // Re-arm OCR when log resolves title (accepted → real contract name)
+  for (var j = 0; j < missionsCache.length; j++) {
+    var mj = missionsCache[j];
+    var prevTitle = missionTitleCache[mj.mission_id];
+    if (prevTitle && prevTitle !== mj.title && !Object.keys(mj.requirements || {}).length) {
+      autoOcrAttempted.delete(mj.mission_id);
+    }
+    missionTitleCache[mj.mission_id] = mj.title;
+  }
   for (var i = 0; i < missionsCache.length; i++) {
     var m = missionsCache[i];
-    if (m.status === "active" && !seenMissionIds.has(m.mission_id)) {
-      seenMissionIds.add(m.mission_id);
-      if (!isMiningScanTitle(m.title)) continue;
-      if (!Object.keys(m.requirements || {}).length) {
+    if (m.status !== "active") continue;
+    var isNew = !seenMissionIds.has(m.mission_id);
+    if (isNew) seenMissionIds.add(m.mission_id);
+    // Includes "Ore Scan (accepted)" from log accept
+    if (!isMiningScanTitle(m.title)) continue;
+    if (!Object.keys(m.requirements || {}).length) {
+      if (isNew || !autoOcrAttempted.has(m.mission_id)) {
         populateOcrMissionSelect();
-        autoOcrForMission(m.mission_id);
+        autoOcrForMission(m.mission_id, false);
       }
     }
   }
@@ -472,8 +485,8 @@ async function autoOcrForMission(missionId, force) {
       prog.style.display = "block";
       prog.textContent = force ? "Re-OCR: capturing screen..." : "Auto OCR: capturing screen...";
     }
-    await pushStatus("Performing OCR - please leave the contract screen open.", "ocr");
-    if (!force) await new Promise(function (r) { setTimeout(r, 800); });
+    await pushStatus("Performing OCR - please leave the contract DETAILS open.", "ocr");
+    if (!force) await new Promise(function (r) { setTimeout(r, 1500); });
     var maxW = 3840, maxH = 2160;
     try {
       if (window.screen && screen.width) {
@@ -504,10 +517,10 @@ async function autoOcrForMission(missionId, force) {
     if (!keys.length) {
       autoOcrAttempted.delete(missionId);
       if (box) {
-        box.textContent = "OCR found no requirements. Keep DETAILS open and retry.";
+        box.textContent = "OCR found no requirements. Keep DETAILS open and retry Re-OCR.";
         box.style.color = "var(--orange)";
       }
-      toast("OCR missed the panel - try again");
+      toast("OCR missed the panel - open DETAILS and press Re-OCR");
       return;
     }
     var summary = keys.map(function (k) { return k + "=" + reqs[k]; }).join(", ");
