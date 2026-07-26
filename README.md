@@ -41,14 +41,14 @@ Output goes to `dist/`.
 
 The app auto-detects common paths such as:
 
-`%LOCALAPPDATA%\StarCitizen\LIVE\Game.log`
+`%LOCALAPPDATA%\\StarCitizen\\LIVE\\Game.log`
 
 If it cannot find the log, click **Log file…** in the header and pick `Game.log` manually.
 
 You can also set:
 
 ```bat
-set SC_GAME_LOG=C:\path\to\Game.log
+set SC_GAME_LOG=C:\\path\\to\\Game.log
 npm start
 ```
 
@@ -95,3 +95,23 @@ When a new Battaglia mission card is created from `Game.log`, the app runs **one
 - If auto OCR misses the panel, use **From Clipboard**, **Upload**, or **OCR this mission** on the card.
 - There is **no** continuous interval scanning.
 
+## GitHub Actions
+
+| Workflow | Trigger | What it does |
+|----------|---------|--------------|
+| **CI** | Push / PR to `main` | `npm install`, Node syntax check, file presence |
+| **Build Windows** | Tag `v*` or manual **Run workflow** | `electron-builder` on `windows-latest`, uploads `.exe` artifacts |
+
+### Manual Windows build
+
+1. Open **Actions** → **Build Windows** → **Run workflow**
+2. Download the **windows-build** artifact when finished
+
+### Release build
+
+```bash
+git tag v1.0.0
+git push origin v1.0.0
+```
+
+The Windows workflow builds installers and attaches them to the GitHub Release for that tag.
