@@ -1,9 +1,9 @@
 "use strict";
 
 /**
- * Base RS (resource signature) values for 1 rock in a cluster.
- * Cluster ping value ≈ base × rock count.
- * Source: community SC 4.7+ mining signature tables / cstone / reddit breakdown.
+ * Base RS (resource signature) for 1 rock in a cluster.
+ * Cluster ping ≈ base × rock count (*1, *2, *3, …).
+ * Source: community SC mining signature tables.
  */
 const RESOURCE_SIGNATURES = {
   Quantanium: 3170,
@@ -36,20 +36,24 @@ const RESOURCE_SIGNATURES = {
   Ice: 4300,
 };
 
-/** Inverse: RS code string → canonical resource name */
+const DEFAULT_CLUSTER_MAX = 5;
+
 const RS_TO_RESOURCE = {};
 for (const [name, sig] of Object.entries(RESOURCE_SIGNATURES)) {
-  // Prefer British spelling where both exist
   const key = String(sig);
   if (!RS_TO_RESOURCE[key] || name === "Aluminium") {
-    RS_TO_RESOURCE[key] = name === "Aluminum" ? "Aluminium" : name === "Quantainium" ? "Quantanium" : name;
+    RS_TO_RESOURCE[key] =
+      name === "Aluminum"
+        ? "Aluminium"
+        : name === "Quantainium"
+          ? "Quantanium"
+          : name;
   }
 }
 
 function signatureFor(resource) {
   if (!resource) return null;
   if (RESOURCE_SIGNATURES[resource] != null) return RESOURCE_SIGNATURES[resource];
-  // case-insensitive
   const lower = String(resource).toLowerCase();
   for (const [k, v] of Object.entries(RESOURCE_SIGNATURES)) {
     if (k.toLowerCase() === lower) return v;
@@ -57,14 +61,34 @@ function signatureFor(resource) {
   return null;
 }
 
+function signaturesForClusters(resource, maxRocks = DEFAULT_CLUSTER_MAX) {
+  const base = signatureFor(resource);
+  if (base == null) return [];
+  const n = Math.max(1, Math.min(12, parseInt(maxRocks, 10) || DEFAULT_CLUSTER_MAX));
+  const out = [];
+  for (let i = 1; i <= n; i++) {
+    out.push({ rocks: i, signature: base * i });
+  }
+  return out;
+}
+
 function formatSignature(sig) {
   if (sig == null) return "";
   return String(sig);
 }
 
+function formatClusterSignatures(resource, maxRocks = DEFAULT_CLUSTER_MAX) {
+  const list = signaturesForClusters(resource, maxRocks);
+  if (!list.length) return "";
+  return list.map((x) => x.signature).join(" · ");
+}
+
 module.exports = {
   RESOURCE_SIGNATURES,
   RS_TO_RESOURCE,
+  DEFAULT_CLUSTER_MAX,
   signatureFor,
+  signaturesForClusters,
   formatSignature,
+  formatClusterSignatures,
 };
