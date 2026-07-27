@@ -1,7 +1,7 @@
 {
   "name": "sc-battaglia-mining-tracker",
-  "version": "1.3.0",
-  "description": "Star Citizen Battaglia mining mission tracker with shared progress and Tesseract.js OCR - Add resources form",
+  "version": "1.4.0",
+  "description": "Star Citizen Battaglia mining mission tracker with shared progress and Tesseract.js OCR - Updated resource clusters",
   "main": "main.js",
   "author": "DuhBuhHuh",
   "license": "MIT",
