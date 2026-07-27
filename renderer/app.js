@@ -80,7 +80,7 @@ function sigLabel(resource) {
   var max = clusterMaxFor(resource);
   var parts = [];
   for (var i = 1; i <= max; i++) parts.push(sig * i);
-  return ' <span style="color:var(--accent);font-size:0.75em;font-weight:600" title="Cluster RS">(' + parts.join(" · ") + ")</span>";
+  return " <span class=\"sig-label\" title=\"Cluster RS\">(" + parts.join(" · ") + ")</span>";
 }
 
 function normalizeResourceList(list) {
@@ -117,12 +117,12 @@ async function loadStats() {
   var rem = s.remaining_totals || {};
   var keys = Object.keys(rem).sort();
   if (!keys.length) {
-    box.innerHTML = '<div class="empty">No active requirements</div>';
+    box.innerHTML = "<div class=\"empty\">No active requirements</div>";
   } else {
     var sigMap = window.SIGNATURES || {};
     var detailed = s.remaining_detailed || {};
     var missionN = s.remaining_mission_count != null ? s.remaining_mission_count : (s.active_count || 0);
-    var spread = '<div class="empty" style="margin-bottom:0.35rem;color:var(--muted)">Across <strong style="color:var(--text)">' + missionN + "</strong> mission" + (missionN === 1 ? "" : "s") + "</div>";
+    var spread = "<div class=\"empty\" style=\"margin-bottom:0.35rem;color:var(--muted)\">Across <strong style=\"color:var(--text)\">" + missionN + "</strong> mission" + (missionN === 1 ? "" : "s") + "</div>";
     box.innerHTML = spread + keys.map(function (k) {
       var n = rem[k];
       var base = (detailed[k] && detailed[k].signature != null) ? detailed[k].signature : sigMap[k];
@@ -133,7 +133,7 @@ async function loadStats() {
         for (var i = 1; i <= mx; i++) cluster.push(base * i);
       }
       var sigPart = cluster && cluster.length ? " (" + cluster.join(" · ") + ")" : "";
-      return '<div class="req-item"><span>' + k + " <strong>" + n + "</strong><span style="color:var(--accent);font-size:0.85em">" + sigPart + "</span></span></div>";
+      return "<div class=\"req-item\"><span>" + k + " <strong>" + n + "</strong><span class=\"sig-label\">" + sigPart + "</span></span></div>";
     }).join("");
   }
 }
@@ -180,7 +180,7 @@ function renderMissions() {
   if (currentFilter === "active") items = items.filter(function (m) { return m.status === "active"; });
   if (currentFilter === "completed") items = items.filter(function (m) { return m.status === "completed"; });
   if (!items.length) {
-    list.innerHTML = '<div class="empty">No missions match this filter</div>';
+    list.innerHTML = "<div class=\"empty\">No missions match this filter</div>";
     return;
   }
   list.innerHTML = items.map(function (m) {
@@ -191,37 +191,38 @@ function renderMissions() {
     var cls = m.status === "completed" ? "complete" : needsReq ? "needs-req" : "";
     var body = "";
     if (keys.length) {
-      body = '<div class="req-grid">' + keys.map(function (r) {
+      body = "<div class=\"req-grid\">" + keys.map(function (r) {
         var need = reqs[r] || 0;
         var have = prog[r] || 0;
         var done = need > 0 && have >= need;
         var left = Math.max(0, need - have);
         var removeBtn = m.status === "active"
-          ? ' <button type="button" class="btn btn-ghost btn-sm req-remove" data-mid="' + m.mission_id +
-            '" data-res="' + escapeHtml(r) + '" data-act="remove-req" title="Remove this resource from the mission">Remove</button>'
+          ? " <button type=\"button\" class=\"btn btn-ghost btn-sm req-remove\" data-mid=\"" + m.mission_id +
+            "\" data-res=\"" + escapeHtml(r) + "\" data-act=\"remove-req\" title=\"Remove this resource from the mission\">Remove</button>"
           : "";
-        return '<div class="req-item ' + (done ? "done" : "") + '">' +
-          '<div class="req-line-name">' + escapeHtml(r) + sigLabel(r) + removeBtn + "</div>" +
-          '<div class="req-line-stats">Required <strong>' + need + "</strong> <span class="sep">|</span> <strong>" +
-          have + "</strong> Scanned <span class="sep">|</span> <strong class="' + (left === 0 ? "ok" : "left") + '">' +
+        return "<div class=\"req-item " + (done ? "done" : "") + "\">" +
+          "<div class=\"req-line-name\">" + escapeHtml(r) + sigLabel(r) + removeBtn + "</div>" +
+          "<div class=\"req-line-stats\">Required <strong>" + need + "</strong> <span class=\"sep\">|</span> <strong>" +
+          have + "</strong> Scanned <span class=\"sep\">|</span> <strong class=\"" + (left === 0 ? "ok" : "left") + "\">" +
           left + "</strong> Remaining</div></div>";
       }).join("") + "</div>";
     } else if (m.status === "active") {
-      body = '<div class="empty" style="padding:0.6rem 0">No items to scan yet - open DETAILS and press <strong>Re-OCR</strong>, or use <strong>Add resource to mission</strong>.</div>';
+      body = "<div class=\"empty\" style=\"padding:0.6rem 0\">No items to scan yet - open DETAILS and press <strong>Re-OCR</strong>, or use <strong>Add resource to mission</strong>.</div>";
     } else {
-      body = '<div class="empty" style="padding:0.5rem">No requirements recorded</div>';
+      body = "<div class=\"empty\" style=\"padding:0.5rem\">No requirements recorded</div>";
     }
     var actions = "";
     if (m.status === "active") {
-      actions = '<div style="margin-top:0.55rem;display:flex;gap:0.4rem;flex-wrap:wrap">' +
-        '<button type="button" class="btn btn-orange btn-sm" data-mid="' + m.mission_id + '" data-act="reocr">Re-OCR</button>' +
-        '<button type="button" class="btn btn-ghost btn-sm" data-mid="' + m.mission_id + '" data-act="abandon">Abandon</button></div>';
+      actions = "<div style=\"margin-top:0.55rem;display:flex;gap:0.4rem;flex-wrap:wrap\">" +
+        "<button type=\"button\" class=\"btn btn-orange btn-sm\" data-mid=\"" + m.mission_id + "\" data-act=\"reocr\">Re-OCR</button>" +
+        "<button type=\"button\" class=\"btn btn-ghost btn-sm\" data-mid=\"" + m.mission_id + "\" data-act=\"abandon\">Abandon</button></div>";
     }
-    return '<div class="mission ' + cls + '"><div class="mission-header"><div>' +
-      '<div class="mission-title">' + escapeHtml(m.title) + "</div>" +
-      '<div class="mission-meta">' + m.mission_id.slice(0, 8) + "... accepted " + fmtTime(m.accepted_at) +
+    var statusColor = m.status === "completed" ? "var(--green)" : "var(--orange)";
+    return "<div class=\"mission " + cls + "\"><div class=\"mission-header\"><div>" +
+      "<div class=\"mission-title\">" + escapeHtml(m.title) + "</div>" +
+      "<div class=\"mission-meta\">" + m.mission_id.slice(0, 8) + "... accepted " + fmtTime(m.accepted_at) +
       (m.completed_at ? " - done " + fmtTime(m.completed_at) : "") + "</div></div>" +
-      '<span style="font-size:0.75rem;color:' + (m.status === "completed" ? "var(--green)" : "var(--orange)") + '">' +
+      "<span style=\"font-size:0.75rem;color:" + statusColor + "\">" +
       m.status + "</span></div>" + body + actions + "</div>";
   }).join("");
   refreshScanDropdown();
@@ -279,9 +280,9 @@ function populateOcrMissionSelect() {
   if (!sel) return;
   var active = missionsCache.filter(function (m) { return m.status === "active" && isMiningScanTitle(m.title); });
   var cur = sel.value;
-  sel.innerHTML = '<option value="">- most recent active -</option>' +
+  sel.innerHTML = "<option value=\"\">- most recent active -</option>" +
     active.map(function (m) {
-      return '<option value="' + m.mission_id + '">' + escapeHtml(m.title).slice(0, 40) + " (" + m.mission_id.slice(0, 8) + ")</option>";
+      return "<option value=\"" + m.mission_id + "\">" + escapeHtml(m.title).slice(0, 40) + " (" + m.mission_id.slice(0, 8) + ")</option>";
     }).join("");
   if (cur) sel.value = cur;
 }
@@ -339,7 +340,7 @@ async function ocrImageSource(source) {
       return;
     }
     var summary = keys.map(function (k) { return k + "=" + reqs[k]; }).join(", ");
-    if (box) box.innerHTML = '<strong style="color:var(--green)">Found:</strong> ' + summary;
+    if (box) box.innerHTML = "<strong class=\"ok-text\">Found:</strong> " + summary;
     toast("OCR: " + summary);
     await pushStatus("OCR complete - you can close this contract or look for a new one.", "ocr_done");
     loadMissions();
@@ -387,10 +388,10 @@ async function loadHistory() {
   var r = await fetch("/api/history");
   var hist = await r.json();
   var box = document.getElementById("history-list");
-  if (!hist.length) { box.innerHTML = '<div class="empty">No scans yet</div>'; return; }
+  if (!hist.length) { box.innerHTML = "<div class=\"empty\">No scans yet</div>"; return; }
   box.innerHTML = hist.slice().reverse().slice(0, 15).map(function (e) {
-    return '<div class="history-item"><strong>' + e.count + "x " + e.resource + "</strong> -> " + e.applied_to.length +
-      ' mission(s)<br/><span style="font-size:0.7rem">' + fmtTime(e.timestamp) + "</span></div>";
+    return "<div class=\"history-item\"><strong>" + e.count + "x " + e.resource + "</strong> -> " + e.applied_to.length +
+      " mission(s)<br/><span style=\"font-size:0.7rem\">" + fmtTime(e.timestamp) + "</span></div>";
   }).join("");
 }
 
@@ -431,12 +432,12 @@ async function loadActedLog() {
       return "objective";
     }
     box.innerHTML = list.map(function (e) {
-      var mid = e.mission_id ? e.mission_id.slice(0, 8) : "—";
+      var mid = e.mission_id ? e.mission_id.slice(0, 8) : "-";
       var t = e.timestamp ? new Date(e.timestamp).toLocaleTimeString() : "";
       var action = String(e.action || e.kind || "").replace(/_/g, " ");
-      return '<div class="log-event"><span class="tag ' + tagClass(e.kind) + '">' + escapeHtml(action) +
-        '</span> <span class="ts">' + t + '</span> <span class="mid">' + mid +
-        '</span> <span class="detail">' + escapeHtml(e.detail || e.title || "") + "</span></div>";
+      return "<div class=\"log-event\"><span class=\"tag " + tagClass(e.kind) + "\">" + escapeHtml(action) +
+        "</span> <span class=\"ts\">" + t + "</span> <span class=\"mid\">" + mid +
+        "</span> <span class=\"detail\">" + escapeHtml(e.detail || e.title || "") + "</span></div>";
     }).join("");
   } catch (err) {
     console.error(err);
@@ -509,7 +510,7 @@ function populateAddReqControls() {
     resSel.innerHTML = all.map(function (r) {
       var sig = (window.SIGNATURES || {})[r];
       var label = sig != null ? r + " (" + sig + ")" : r;
-      return '<option value="' + r + '">' + label + "</option>";
+      return "<option value=\"" + r + "\">" + label + "</option>";
     }).join("");
     if (prev && all.indexOf(prev) >= 0) resSel.value = prev;
   }
@@ -518,9 +519,9 @@ function populateAddReqControls() {
     var active = missionsCache.filter(function (m) {
       return m.status === "active" && isMiningScanTitle(m.title);
     });
-    misSel.innerHTML = '<option value="">— select mission —</option>' +
+    misSel.innerHTML = "<option value=\"\">— select mission —</option>" +
       active.map(function (m) {
-        return '<option value="' + m.mission_id + '">' + escapeHtml((m.title || "").slice(0, 42)) +
+        return "<option value=\"" + m.mission_id + "\">" + escapeHtml((m.title || "").slice(0, 42)) +
           " (" + m.mission_id.slice(0, 8) + ")</option>";
       }).join("");
     if (prevM) misSel.value = prevM;
@@ -578,14 +579,14 @@ function refreshScanDropdown() {
   var rest = all.filter(function (r) { return !needed[r]; });
   var html = "";
   if (needKeys.length) {
-    html += '<optgroup label="Still needed">' + needKeys.map(function (r) {
-      return '<option value="' + r + '">' + r + " (" + needed[r] + " left)</option>";
+    html += "<optgroup label=\"Still needed\">" + needKeys.map(function (r) {
+      return "<option value=\"" + r + "\">" + r + " (" + needed[r] + " left)</option>";
     }).join("") + "</optgroup>";
   }
-  html += '<optgroup label="All resources">' + (needKeys.length ? rest : all).map(function (r) {
-    return '<option value="' + r + '">' + r + "</option>";
+  html += "<optgroup label=\"All resources\">" + (needKeys.length ? rest : all).map(function (r) {
+    return "<option value=\"" + r + "\">" + r + "</option>";
   }).join("") + "</optgroup>";
-  sel.innerHTML = html || all.map(function (r) { return '<option value="' + r + '">' + r + "</option>"; }).join("");
+  sel.innerHTML = html || all.map(function (r) { return "<option value=\"" + r + "\">" + r + "</option>"; }).join("");
   var opts = Array.prototype.slice.call(sel.options);
   if (prev && opts.some(function (o) { return o.value === prev; })) sel.value = prev;
   else if (needKeys.length) sel.value = needKeys[0];
@@ -674,7 +675,7 @@ async function autoOcrForMission(missionId, force) {
       return;
     }
     var summary = keys.map(function (k) { return k + "=" + reqs[k]; }).join(", ");
-    if (box) box.innerHTML = '<strong style="color:var(--green)">OCR:</strong> ' + summary;
+    if (box) box.innerHTML = "<strong class=\"ok-text\">OCR:</strong> " + summary;
     toast((force ? "Re-OCR: " : "Auto OCR: ") + summary);
     await pushStatus("OCR complete - you can close this contract or look for a new one.", "ocr_done");
     loadMissions();
