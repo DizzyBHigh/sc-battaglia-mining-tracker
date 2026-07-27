@@ -15,6 +15,14 @@ const {
   DEFAULT_CLUSTER_MAX,
 } = require("./signatures");
 
+/** Canonical resource names for UI dropdowns (aliases stripped). */
+function listResources() {
+  const skip = new Set(["Aluminum", "Quantainium", "Savrillium"]);
+  const fromSig = Object.keys(RESOURCE_SIGNATURES || {}).filter((k) => !skip.has(k));
+  const set = new Set([...(COMMON_RESOURCES || []), ...fromSig]);
+  return Array.from(set).sort((a, b) => a.localeCompare(b));
+}
+
 function createServer(options = {}) {
   const dataPath =
     options.dataPath ||
@@ -174,7 +182,7 @@ function createServer(options = {}) {
     const id = body.mission_id || crypto.randomUUID();
     const title =
       (body.title && String(body.title).trim()) ||
-      "Manual Ore Scan (screen OCR)";
+      "Manual Ore Scan";
     const m = store.addOrUpdateMission(
       id,
       title,
@@ -186,6 +194,11 @@ function createServer(options = {}) {
     if (body.progress && store.applyOcrState) {
       store.applyOcrState(id, body.requirements || null, body.progress);
     }
+    pushActed(
+      { kind: "accept", mission_id: id, timestamp: new Date().toISOString(), title },
+      "MANUAL CREATE",
+      "Manual mission card: " + title
+    );
     res.json(store.missions[id].toJSON());
   });
 
@@ -257,7 +270,7 @@ function createServer(options = {}) {
   });
 
   app.get("/api/resources", (_req, res) => {
-    res.json(COMMON_RESOURCES);
+    res.json(listResources());
   });
 
   app.get("/api/signatures", (_req, res) => {
@@ -306,6 +319,7 @@ function createServer(options = {}) {
       remaining_mission_count,
       remaining_detailed,
       signatures: RESOURCE_SIGNATURES,
+      resources: listResources(),
       scan_events: store.scan_history.length,
       ocr_available: true,
       ocr_backend: "tesseract.js (browser CDN)",
@@ -372,7 +386,7 @@ function createServer(options = {}) {
     res.json({
       log_path: currentLogPath,
       data_path: dataPath,
-      resources: COMMON_RESOURCES,
+      resources: listResources(),
     });
   });
 
