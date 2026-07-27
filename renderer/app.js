@@ -7,7 +7,6 @@ var autoOcrAttempted = new Set();
 var missionTitleCache = {};
 var tesseractWorker = null;
 
-/** Always available if /api/resources fails — keeps dropdowns populated. */
 var FALLBACK_RESOURCES = [
   "Agricium", "Aluminium", "Aslarite", "Beryl", "Bexalite", "Borase",
   "Copper", "Corundum", "Gold", "Hephaestanite", "Ice", "Iron",
@@ -247,7 +246,13 @@ document.addEventListener("click", function (ev) {
 });
 
 async function abandon(mid) {
-  if (!confirm("Mark this mission as abandoned?")) return;
+  var ok = await showConfirm("Mark this mission as abandoned?", {
+    title: "Abandon mission",
+    okText: "Abandon",
+    cancelText: "Keep",
+    danger: true,
+  });
+  if (!ok) return;
   await fetch("/api/mission/" + mid, {
     method: "POST",
     headers: { "Content-Type": "application/json" },
@@ -451,7 +456,13 @@ async function clearActedLog() {
 
 async function removeRequirementFromMission(mid, resource) {
   if (!mid || !resource) return;
-  if (!confirm("Remove " + resource + " from this mission?")) return;
+  var ok = await showConfirm("Remove " + resource + " from this mission?", {
+    title: "Remove resource",
+    okText: "Remove",
+    cancelText: "Cancel",
+    danger: true,
+  });
+  if (!ok) return;
   var r = await fetch("/api/mission/" + mid + "/requirement/remove", {
     method: "POST",
     headers: { "Content-Type": "application/json" },
