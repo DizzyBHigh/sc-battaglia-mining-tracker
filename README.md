@@ -17,6 +17,10 @@ Desktop app for tracking **Recco Battaglia** scan missions in Star Citizen, with
 
 ## Install & run
 
+Download the latest release Portable Zip and run it
+Or download the portable Foldere zip, 
+extract to a folder on your computer and run SC Battaglia Mining Tracker.exe.
+
 ```bat
 cd sc_mining_tracker_electron
 npm install
@@ -52,13 +56,80 @@ set SC_GAME_LOG=C:\\path\\to\\Game.log
 npm start
 ```
 
-## How to use
+## Quick Start Guide
 
 1. Accept Battaglia scan contracts in-game — they appear automatically.
 2. Open a contract → screenshot DETAILS / PRIMARY OBJECTIVES (Win+Shift+S) → **From Clipboard** (or Upload / Ctrl+V).
 3. OCR fills requirements (Tesseract.js in the window).
-4. When you scan an asteroid, choose the resource → **Record Scan**.
-5. Progress applies to every active mission that still needs that resource.
+4. Click the blue Overlay button to show onscreen what materilas you still need to scan for along with their resource signatures.
+(clicking the Allow overlay Drag checkbox allows you to resize and reposistion the overlay)
+5. When you scan an asteroid, choose the resource → **Record Scan**.
+6. Progress applies to every active mission that still needs that resource.
+
+
+## How too Use
+
+Log File - Click this to specify the location of your star citizen log file if it it not automatically detected
+e.g. D:\Games\Roberts Space Industries\StarCitizen\LIVE\Game.log
+
+### Creating Mission Cards
+
+There a 3 ways to add a new mission card
+
+* Manually
+* A screengrab from the clipboard
+* A Screengrab from the contracts screen in game.
+ 
+ 
+### Manual nission creation
+
+In the create mission card area, Enter a name for the mission and click the Create card button.
+The mission will apear in the Missions panel.
+
+You will need to add the resources you wish to scan to this mission card using the Add resources to Mission Area.
+
+### Add resources to mission
+
+ Select a resource and ammount you wish to scan, the mission you wish to add the resource too, then click the Add to mission button, The selected resource will appear on the mission card.
+
+ This is udsefull to add items that the OCR may have missed.
+
+## OCR Contract Screen
+
+To create a new mission card the easiest way is to accept a mission in game, a card will be automatically created.
+After accepting a mission in game clcik the mission tab in the accepted missions panel on the left, this will populate the screen with the items to scan.
+
+If the items to scan do not automaticaslly appear you can click the Re-OCR button and the items to scan will be scanned for again.
+
+You can click the new contract from screen while you are on the missions screen to read in the mission you are currently veiwing.
+
+## The overlay 
+
+The overlay will show what resources you need to scan and how many, the resource ID's for that resource.
+
+## Best way to scan for resources.
+
+* Hit V to enter scan mode, uses the mouse wheel to have a 90 degree arx and hit tab to perform a scan.
+* YOu will see multiple unknown signals at various distances.
+* Point the ship in the direction of a resource to check its signature.
+* If the numbers match a resource in the overlay, you have found something you need to scan.
+* use the mouse wheel to set the scvan arc to 2 degrees, then Hit V to leave scanning mode. 
+(this prevents you from prematurly identifying the rock before the mission has updated)
++ Fly to wards the sigtnal hitting tab to keep it visible.
+* When you have arrived at the asteroids, hit V but do not pint directly at the asteroids to avopid scanning to early.
+* In your missions panel on the mobi glass make sure a mission requiring the type of asterod you are at needs scanning is being tracked.
+* Wait for the yellow Scan Asteroid markers to appear on the asteroids.
+(depending on the server lag this can take up top 3 minutes)
+* Once the markers appear point at the asteroids and hld down left mouse button to perform a scan, Scan all the asteroids in the cluster.
+* Record the scan in the app select the asterod type and amount you have scanned and click the Record Scan Button.
+
+The Overlay will update and show which resources are still needing to be scanned.
+
+Once all the asteroids have been scanned the missions will auto complete.
+
+Iron is only found in the Glacium Ring the inner belt where Levski is. 
+Aluminium is found only in the Keeger belt (where the QV Breaker stations are.)
+All the other resources can be found in any of the belts.
 
 ## Project layout
 
