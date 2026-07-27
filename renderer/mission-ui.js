@@ -1,6 +1,6 @@
 /**
- * Mission list filters, delete completed, scan stats panel.
- * Loaded after app.js — augments / overrides as needed.
+ * Mission list filters and clear-completed helper.
+ * Loaded after app.js.
  */
 (function () {
   var filterResource = "";
@@ -72,34 +72,13 @@
     if (typeof renderMissions === "function") renderMissions();
   }
 
-  // Wrap renderMissions to apply extra filters
   var _origRender = null;
   function installRenderWrapper() {
     if (typeof window.renderMissions !== "function") return;
     if (window.renderMissions.__wrappedFilters) return;
     _origRender = window.renderMissions;
     window.renderMissions = function () {
-      // Temporarily filter missionsCache view via monkey-patch of list building:
-      // call original but it reads missionsCache — so we filter by temporarily
-      // swapping is not ideal. Instead re-implement filter on top:
-      var list = document.getElementById("mission-list");
-      if (!list) return _origRender();
-
       var cache = typeof missionsCache !== "undefined" ? missionsCache : [];
-      var currentFilter = typeof window.currentFilter === "string"
-        ? window.currentFilter
-        : (document.querySelector(".tab.active") || {}).dataset
-          ? document.querySelector(".tab.active").dataset.filter
-          : "active";
-
-      // Prefer module-level currentFilter from app.js if exposed
-      try {
-        if (typeof currentFilter === "undefined" && window._missionFilter) {
-          currentFilter = window._missionFilter;
-        }
-      } catch (_) {}
-
-      // Use app's render if we can inject filter via temp cache
       var saved = cache.slice();
       var filtered = cache.filter(function (m) {
         if (typeof isMiningScanTitle === "function") {
@@ -108,7 +87,6 @@
         }
         return missionMatchesFilters(m);
       });
-      // Mutate missionsCache in place for original render
       if (typeof missionsCache !== "undefined") {
         missionsCache.length = 0;
         for (var i = 0; i < filtered.length; i++) missionsCache.push(filtered[i]);
@@ -162,67 +140,6 @@
     if (typeof loadMissions === "function") loadMissions();
   }
 
-  async function renderScanStatsPanel(s) {
-    var box = document.getElementById("scan-stats-panel");
-    if (!box) return;
-    var stats = (s && s.scan_stats) || {};
-    var totalEvents = stats.total_events != null ? stats.total_events : (s && s.scan_events) || 0;
-    var totalUnits = stats.total_units != null ? stats.total_units : 0;
-    var by = stats.by_resource || {};
-    var keys = Object.keys(by).sort(function (a, b) {
-      return (by[b].units || 0) - (by[a].units || 0) || a.localeCompare(b);
-    });
-    var head =
-      '<div class="stat-row"><span>Total scan events</span><strong>' +
-      totalEvents +
-      "</strong></div>" +
-      '<div class="stat-row"><span>Total units recorded</span><strong>' +
-      totalUnits +
-      "</strong></div>";
-    if (!keys.length) {
-      box.innerHTML = head + '<div class="empty" style="padding:0.6rem 0">No scans recorded yet</div>';
-      return;
-    }
-    box.innerHTML =
-      head +
-      '<div class="stat-sub">Per resource</div>' +
-      keys
-        .map(function (k) {
-          var row = by[k];
-          return (
-            '<div class="stat-row"><span>' +
-            k +
-            '</span><strong>' +
-            (row.units || 0) +
-            '</strong> <span class="stat-meta">(' +
-            (row.events || 0) +
-            " events)</span></div>"
-          );
-        })
-        .join("");
-  }
-
-  // Hook loadStats to fill scan stats panel
-  var _origLoadStats = null;
-  function installStatsWrapper() {
-    if (typeof window.loadStats !== "function") return;
-    if (window.loadStats.__wrappedScanStats) return;
-    _origLoadStats = window.loadStats;
-    window.loadStats = async function () {
-      await _origLoadStats();
-      try {
-        var r = await fetch("/api/stats");
-        var s = await r.json();
-        await renderScanStatsPanel(s);
-        populateFilterResourceSelect();
-      } catch (e) {
-        console.error(e);
-      }
-    };
-    window.loadStats.__wrappedScanStats = true;
-  }
-
-  // Add Delete button on completed cards via click delegation
   document.addEventListener("click", function (ev) {
     var btn = ev.target && ev.target.closest ? ev.target.closest("[data-act=delete]") : null;
     if (!btn) return;
@@ -230,41 +147,6 @@
     if (mid) deleteMission(mid);
   });
 
-  // After original render, inject Delete on completed missions
-  var _observerInstalled = false;
-  function enhanceCompletedCards() {
-    var list = document.getElementById("mission-list");
-    if (!list) return;
-    list.querySelectorAll(".mission.complete").forEach(function (card) {
-      if (card.querySelector("[data-act=delete]")) return;
-      // Find mission id from Re-OCR/Abandon absence — use meta text
-      var meta = card.querySelector(".mission-meta");
-      if (!meta) return;
-      var m = meta.textContent.match(/^([0-9a-f-]{8})/i);
-      // Better: parse from any data-mid on abandon (won't exist). Search cache.
-      var titleEl = card.querySelector(".mission-title");
-      var title = titleEl ? titleEl.textContent : "";
-      var cache = typeof missionsCache !== "undefined" ? missionsCache : [];
-      var found = cache.find(function (x) {
-        return x.status === "completed" && x.title === title;
-      });
-      if (!found && m) {
-        found = cache.find(function (x) {
-          return x.mission_id && x.mission_id.indexOf(m[1]) === 0;
-        });
-      }
-      if (!found) return;
-      var actions = document.createElement("div");
-      actions.style.cssText = "margin-top:0.55rem;display:flex;gap:0.4rem;flex-wrap:wrap";
-      actions.innerHTML =
-        '<button type="button" class="btn btn-danger btn-sm" data-mid="' +
-        found.mission_id +
-        '" data-act="delete">Delete</button>';
-      card.appendChild(actions);
-    });
-  }
-
-  // Patch setFilter to store current filter on window
   var _origSetFilter = null;
   function installSetFilterWrapper() {
     if (typeof window.setFilter !== "function") return;
@@ -277,10 +159,22 @@
     window.setFilter.__wrapped = true;
   }
 
+  var _origLoadStats = null;
+  function installStatsHook() {
+    if (typeof window.loadStats !== "function") return;
+    if (window.loadStats.__wrappedFilters) return;
+    _origLoadStats = window.loadStats;
+    window.loadStats = async function () {
+      await _origLoadStats();
+      populateFilterResourceSelect();
+    };
+    window.loadStats.__wrappedFilters = true;
+  }
+
   function boot() {
     installRenderWrapper();
-    installStatsWrapper();
     installSetFilterWrapper();
+    installStatsHook();
     populateFilterResourceSelect();
 
     var resEl = document.getElementById("filter-resource");
@@ -289,18 +183,6 @@
     if (resEl) resEl.addEventListener("change", applyMissionFilters);
     if (fromEl) fromEl.addEventListener("change", applyMissionFilters);
     if (toEl) toEl.addEventListener("change", applyMissionFilters);
-
-    // Enhance completed cards after mission list updates
-    var list = document.getElementById("mission-list");
-    if (list && !_observerInstalled) {
-      _observerInstalled = true;
-      var mo = new MutationObserver(function () {
-        enhanceCompletedCards();
-      });
-      mo.observe(list, { childList: true, subtree: true });
-    }
-
-    if (typeof loadStats === "function") loadStats();
   }
 
   window.applyMissionFilters = applyMissionFilters;
