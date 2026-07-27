@@ -105,7 +105,7 @@ class MissionStore {
       fs.mkdirSync(path.dirname(this.path), { recursive: true });
       const data = {
         missions: {},
-        scan_history: this.scan_history.slice(-200),
+        scan_history: this.scan_history.slice(-500),
       };
       for (const [id, m] of Object.entries(this.missions)) {
         data.missions[id] = m.toJSON();
@@ -261,6 +261,42 @@ class MissionStore {
     }
     this.save();
     return true;
+  }
+
+  deleteMission(missionId) {
+    if (!this.missions[missionId]) return false;
+    delete this.missions[missionId];
+    this.save();
+    return true;
+  }
+
+  clearCompleted() {
+    let n = 0;
+    for (const id of Object.keys(this.missions)) {
+      if (this.missions[id].status === "completed") {
+        delete this.missions[id];
+        n += 1;
+      }
+    }
+    if (n) this.save();
+    return n;
+  }
+
+  /** Aggregate recorded scans: total count events and units per resource. */
+  scanStats() {
+    const byResource = {};
+    let totalEvents = 0;
+    let totalUnits = 0;
+    for (const e of this.scan_history) {
+      totalEvents += 1;
+      const r = e.resource || "Unknown";
+      const c = parseInt(e.count, 10) || 0;
+      totalUnits += c;
+      if (!byResource[r]) byResource[r] = { events: 0, units: 0 };
+      byResource[r].events += 1;
+      byResource[r].units += c;
+    }
+    return { total_events: totalEvents, total_units: totalUnits, by_resource: byResource };
   }
 
   activeMissions() {
