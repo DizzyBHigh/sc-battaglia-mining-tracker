@@ -83,6 +83,24 @@ jobs:
         shell: pwsh
         run: Get-ChildItem -Recurse dist | Select-Object FullName, Length
 
+      # Portable folder zip (extract & run) — dist itself stays gitignored / never committed
+      - name: Create portable folder zip
+        if: steps.tagcheck.outputs.exists == 'false'
+        shell: pwsh
+        run: |
+          $ver = "${{ steps.ver.outputs.version }}"
+          $name = "sc-battaglia-mining-tracker-$ver-portable-folder"
+          $src = "dist\\win-unpacked"
+          if (-not (Test-Path $src)) {
+            Write-Error "Expected $src from electron-builder — not found"
+            exit 1
+          }
+          $zip = "dist\\$name.zip"
+          if (Test-Path $zip) { Remove-Item $zip -Force }
+          Compress-Archive -Path "$src\\*" -DestinationPath $zip -CompressionLevel Optimal
+          Write-Host "Created $zip"
+          Get-Item $zip | Format-List Name, Length, FullName
+
       - name: Upload build artifact
         if: steps.tagcheck.outputs.exists == 'false'
         uses: actions/upload-artifact@v4
@@ -90,6 +108,7 @@ jobs:
           name: sc-battaglia-mining-tracker-${{ steps.ver.outputs.version }}
           path: |
             dist/*.exe
+            dist/*.zip
             dist/*.yml
             dist/latest*.yml
           if-no-files-found: error
@@ -105,11 +124,15 @@ jobs:
 
             ### Downloads
             - **Setup (NSIS installer):** `sc-battaglia-mining-tracker-${{ steps.ver.outputs.version }}-setup.exe`
-            - **Portable:** `sc-battaglia-mining-tracker-${{ steps.ver.outputs.version }}-portable.exe`
+            - **Portable single file:** `sc-battaglia-mining-tracker-${{ steps.ver.outputs.version }}-portable.exe`
+            - **Portable folder (zip):** `sc-battaglia-mining-tracker-${{ steps.ver.outputs.version }}-portable-folder.zip` — extract and run the `.exe` inside
 
-            Built automatically from `main`.
+            GitHub also attaches automatic **Source code** zip/tar.gz for this tag (source only — no `dist/` or `node_modules/`).
+
+            Built automatically from `main` when `package.json` version is new.
           files: |
             dist/*.exe
+            dist/*-portable-folder.zip
           fail_on_unmatched_files: false
           generate_release_notes: true
         env:
