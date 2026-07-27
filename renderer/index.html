@@ -16,7 +16,7 @@ main{max-width:1200px;margin:0 auto;padding:1.25rem 1.5rem 3rem;display:grid;gri
 @media(max-width:900px){main{grid-template-columns:1fr}}
 .card{background:var(--surface);border:1px solid var(--border);border-radius:10px;padding:1rem 1.15rem;margin-bottom:1rem}
 .card h2{font-size:.95rem;font-weight:600;margin-bottom:.75rem;display:flex;align-items:center;justify-content:space-between}
-.btn{display:inline-flex;align-items:center;gap:.35rem;background:var(--accent);color:#0d1117;border:none;border-radius:6px;padding:.4rem .85rem;font-size:.85rem;font-weight:600;cursor:pointer}.btn:hover{opacity:.9}.btn-ghost{background:transparent;color:var(--muted);border:1px solid var(--border)}.btn-green{background:var(--green)}.btn-orange{background:var(--orange)}.btn-sm{padding:.25rem .55rem;font-size:.8rem}
+.btn{display:inline-flex;align-items:center;gap:.35rem;background:var(--accent);color:#0d1117;border:none;border-radius:6px;padding:.4rem .85rem;font-size:.85rem;font-weight:600;cursor:pointer}.btn:hover{opacity:.9}.btn-ghost{background:transparent;color:var(--muted);border:1px solid var(--border)}.btn-green{background:var(--green)}.btn-orange{background:var(--orange)}.btn-sm{padding:.25rem .55rem;font-size:.8rem}.btn-danger{background:var(--red);color:#fff}
 select,input[type=number],input[type=text]{background:var(--bg);border:1px solid var(--border);color:var(--text);border-radius:6px;padding:.4rem .6rem;font-size:.9rem;width:100%}
 .scan-row{display:flex;gap:.5rem;align-items:center;margin-bottom:.5rem;flex-wrap:wrap}.scan-row select,.scan-row input[type=text]{flex:1;min-width:120px}
 .mission{border:1px solid var(--border);border-radius:8px;padding:.85rem 1rem;margin-bottom:.75rem;background:#0d1117}.mission.complete{border-color:var(--green);opacity:.75}.mission.needs-req{border-color:var(--orange)}
@@ -51,6 +51,15 @@ footer{text-align:center;color:var(--muted);font-size:.75rem;padding:1rem}
 #log-path-bar{display:flex;align-items:center;gap:.5rem;width:100%;margin-top:.45rem;padding:.25rem .4rem;border-radius:6px;background:rgba(0,0,0,.25);border:1px solid var(--border);font-size:.72rem;color:var(--muted)}
 #log-path-bar .log-label{flex-shrink:0;font-weight:700;text-transform:uppercase;letter-spacing:.04em;color:var(--accent);font-size:.65rem}
 #log-path-text{flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;font-family:ui-monospace,Consolas,monospace;color:var(--text);direction:rtl;text-align:left}
+/* Modal dialogs */
+.modal-root{position:fixed;inset:0;z-index:10000;display:none;align-items:center;justify-content:center;padding:1rem}
+.modal-root.open{display:flex}
+.modal-backdrop{position:absolute;inset:0;background:rgba(1,4,9,.72);backdrop-filter:blur(2px)}
+.modal-dialog{position:relative;z-index:1;width:100%;max-width:420px;background:var(--surface);border:1px solid var(--border);border-radius:12px;padding:1.15rem 1.25rem 1rem;box-shadow:0 16px 48px rgba(0,0,0,.45)}
+.modal-title{font-size:1rem;font-weight:600;margin-bottom:.55rem;color:var(--text)}
+.modal-body{font-size:.9rem;color:var(--muted);line-height:1.45;margin-bottom:1.1rem;white-space:pre-wrap}
+.modal-actions{display:flex;justify-content:flex-end;gap:.5rem;flex-wrap:wrap}
+.modal-actions .btn{min-width:5rem;justify-content:center}
   </style>
 </head>
 <body>
@@ -143,6 +152,7 @@ footer{text-align:center;color:var(--muted);font-size:.75rem;padding:1rem}
 </aside>
 </main>
 <footer>Star Citizen · Battaglia tracker · local only</footer>
+<script src="modals.js"></script>
 <script src="app.js"></script>
 <script src="ocr-actions.js"></script>
 </body>
