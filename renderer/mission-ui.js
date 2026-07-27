@@ -7,15 +7,26 @@
   var filterFrom = "";
   var filterTo = "";
 
-  function parseLocalDateStart(s) {
+  /**
+   * Parse datetime-local (YYYY-MM-DDTHH:mm) or date-only values to epoch ms.
+   * from=true → start of day if time omitted; from=false → end of day if omitted.
+   */
+  function parseFilterDateTime(s, isStart) {
     if (!s) return null;
-    var d = new Date(s + "T00:00:00");
-    return isNaN(d.getTime()) ? null : d.getTime();
-  }
-  function parseLocalDateEnd(s) {
-    if (!s) return null;
-    var d = new Date(s + "T23:59:59.999");
-    return isNaN(d.getTime()) ? null : d.getTime();
+    var str = String(s).trim();
+    if (!str) return null;
+    // datetime-local: 2026-07-27T14:30
+    if (/^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}/.test(str)) {
+      var d = new Date(str);
+      return isNaN(d.getTime()) ? null : d.getTime();
+    }
+    // date-only fallback
+    if (/^\d{4}-\d{2}-\d{2}$/.test(str)) {
+      var d2 = new Date(str + (isStart ? "T00:00:00" : "T23:59:59.999"));
+      return isNaN(d2.getTime()) ? null : d2.getTime();
+    }
+    var d3 = new Date(str);
+    return isNaN(d3.getTime()) ? null : d3.getTime();
   }
 
   function missionMatchesFilters(m) {
@@ -23,8 +34,8 @@
       var reqs = m.requirements || {};
       if (!Object.prototype.hasOwnProperty.call(reqs, filterResource)) return false;
     }
-    var fromTs = parseLocalDateStart(filterFrom);
-    var toTs = parseLocalDateEnd(filterTo);
+    var fromTs = parseFilterDateTime(filterFrom, true);
+    var toTs = parseFilterDateTime(filterTo, false);
     if (fromTs != null || toTs != null) {
       var t = Date.parse(m.accepted_at || m.completed_at || "");
       if (isNaN(t)) return false;
@@ -181,8 +192,14 @@
     var fromEl = document.getElementById("filter-from");
     var toEl = document.getElementById("filter-to");
     if (resEl) resEl.addEventListener("change", applyMissionFilters);
-    if (fromEl) fromEl.addEventListener("change", applyMissionFilters);
-    if (toEl) toEl.addEventListener("change", applyMissionFilters);
+    if (fromEl) {
+      fromEl.addEventListener("change", applyMissionFilters);
+      fromEl.addEventListener("input", applyMissionFilters);
+    }
+    if (toEl) {
+      toEl.addEventListener("change", applyMissionFilters);
+      toEl.addEventListener("input", applyMissionFilters);
+    }
   }
 
   window.applyMissionFilters = applyMissionFilters;
