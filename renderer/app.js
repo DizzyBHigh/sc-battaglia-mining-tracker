@@ -46,6 +46,7 @@ function setFilter(btn) {
   document.querySelectorAll(".tab").forEach(function (t) { t.classList.remove("active"); });
   btn.classList.add("active");
   currentFilter = btn.dataset.filter;
+  window._missionFilter = currentFilter;
   renderMissions();
 }
 
@@ -177,7 +178,9 @@ function renderMissions() {
     return m.requirements && Object.keys(m.requirements).length > 0;
   });
   if (currentFilter === "active") items = items.filter(function (m) { return m.status === "active"; });
-  if (currentFilter === "completed") items = items.filter(function (m) { return m.status === "completed"; });
+  if (currentFilter === "completed") items = items.filter(function (m) {
+    return m.status === "completed" || m.status === "abandoned";
+  });
   if (!items.length) {
     list.innerHTML = "<div class=\"empty\">No missions match this filter</div>";
     return;
@@ -187,7 +190,9 @@ function renderMissions() {
     var prog = m.progress || {};
     var keys = Object.keys(reqs).sort();
     var needsReq = keys.length === 0 && m.status === "active";
-    var cls = m.status === "completed" ? "complete" : needsReq ? "needs-req" : "";
+    var cls = m.status === "completed" ? "complete"
+      : m.status === "abandoned" ? "abandoned"
+      : needsReq ? "needs-req" : "";
     var body = "";
     if (keys.length) {
       body = "<div class=\"req-grid\">" + keys.map(function (r) {
@@ -215,8 +220,13 @@ function renderMissions() {
       actions = "<div style=\"margin-top:0.55rem;display:flex;gap:0.4rem;flex-wrap:wrap\">" +
         "<button type=\"button\" class=\"btn btn-orange btn-sm\" data-mid=\"" + m.mission_id + "\" data-act=\"reocr\">Re-OCR</button>" +
         "<button type=\"button\" class=\"btn btn-ghost btn-sm\" data-mid=\"" + m.mission_id + "\" data-act=\"abandon\">Abandon</button></div>";
+    } else if (m.status === "completed" || m.status === "abandoned") {
+      actions = "<div style=\"margin-top:0.55rem;display:flex;gap:0.4rem;flex-wrap:wrap\">" +
+        "<button type=\"button\" class=\"btn btn-danger btn-sm\" data-mid=\"" + m.mission_id + "\" data-act=\"delete\">Delete</button></div>";
     }
-    var statusColor = m.status === "completed" ? "var(--green)" : "var(--orange)";
+    var statusColor = m.status === "completed" ? "var(--green)"
+      : m.status === "abandoned" ? "var(--muted)"
+      : "var(--orange)";
     return "<div class=\"mission " + cls + "\"><div class=\"mission-header\"><div>" +
       "<div class=\"mission-title\">" + escapeHtml(m.title) + "</div>" +
       "<div class=\"mission-meta\">" + m.mission_id.slice(0, 8) + "... accepted " + fmtTime(m.accepted_at) +
@@ -242,6 +252,8 @@ document.addEventListener("click", function (ev) {
   } else if (act === "remove-req" && mid) {
     var res = btn.getAttribute("data-res");
     if (res) removeRequirementFromMission(mid, res);
+  } else if (act === "delete" && mid) {
+    if (typeof deleteMission === "function") deleteMission(mid);
   }
 });
 
@@ -705,6 +717,8 @@ window.toggleOverlay = toggleOverlay;
 window.onOverlayDragCheckbox = onOverlayDragCheckbox;
 window.setFilter = setFilter;
 window.loadMissions = loadMissions;
+window.loadStats = loadStats;
+window.renderMissions = renderMissions;
 window.recordScan = recordScan;
 window.ocrClipboard = ocrClipboard;
 window.ocrUpload = ocrUpload;
