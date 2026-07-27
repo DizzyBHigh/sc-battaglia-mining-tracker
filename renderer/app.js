@@ -7,6 +7,15 @@ var autoOcrAttempted = new Set();
 var missionTitleCache = {};
 var tesseractWorker = null;
 
+/** Always available if /api/resources fails — keeps dropdowns populated. */
+var FALLBACK_RESOURCES = [
+  "Agricium", "Aluminium", "Aslarite", "Beryl", "Bexalite", "Borase",
+  "Copper", "Corundum", "Gold", "Hephaestanite", "Ice", "Iron",
+  "Laranite", "Lindinium", "Ouratite", "Quantanium", "Quartz", "Riccite",
+  "Savrilium", "Silicon", "Stileron", "Taranite", "Tin", "Titanium",
+  "Torite", "Tungsten"
+];
+
 function isMiningScanTitle(title) {
   var t = String(title || "");
   if (/ocr|screen/i.test(t)) return true;
@@ -74,6 +83,19 @@ function sigLabel(resource) {
   return ' <span style="color:var(--accent);font-size:0.75em;font-weight:600" title="Cluster RS">(' + parts.join(" · ") + ")</span>";
 }
 
+function normalizeResourceList(list) {
+  var skip = { Aluminum: 1, Quantainium: 1, Savrillium: 1 };
+  var out = [];
+  var seen = {};
+  (list || []).forEach(function (r) {
+    if (!r || skip[r] || seen[r]) return;
+    seen[r] = 1;
+    out.push(r);
+  });
+  out.sort(function (a, b) { return a.localeCompare(b); });
+  return out.length ? out : FALLBACK_RESOURCES.slice();
+}
+
 async function loadStats() {
   var r = await fetch("/api/stats");
   var s = await r.json();
@@ -85,6 +107,11 @@ async function loadStats() {
     var lp = s.log_path || "";
     logEl.textContent = lp || "(not set - click Log file...)";
     logEl.title = lp || "No Game.log selected";
+  }
+  if (Array.isArray(s.resources) && s.resources.length) {
+    window.RESOURCES = normalizeResourceList(s.resources);
+    refreshScanDropdown();
+    populateAddReqControls();
   }
   var box = document.getElementById("remaining-totals");
   var rem = s.remaining_totals || {};
@@ -180,7 +207,7 @@ function renderMissions() {
           left + "</strong> Remaining</div></div>";
       }).join("") + "</div>";
     } else if (m.status === "active") {
-      body = '<div class="empty" style="padding:0.6rem 0">No items to scan yet - open DETAILS and press <strong>Re-OCR</strong>.</div>';
+      body = '<div class="empty" style="padding:0.6rem 0">No items to scan yet - open DETAILS and press <strong>Re-OCR</strong>, or use <strong>Add resource to mission</strong>.</div>';
     } else {
       body = '<div class="empty" style="padding:0.5rem">No requirements recorded</div>';
     }
@@ -231,6 +258,7 @@ async function abandon(mid) {
 async function recordScan() {
   var resource = document.getElementById("scan-resource").value;
   var count = parseInt(document.getElementById("scan-count").value, 10) || 1;
+  if (!resource) { toast("Select a resource"); return; }
   var r = await fetch("/api/scan", {
     method: "POST",
     headers: { "Content-Type": "application/json" },
@@ -453,12 +481,31 @@ async function addRequirementToMission() {
   loadMissions();
 }
 
+async function createManualMission() {
+  var titleEl = document.getElementById("manual-mission-title");
+  var title = (titleEl && titleEl.value.trim()) || "Manual Ore Scan";
+  if (!/mining|scan|ore|gathering|manual|ocr|screen/i.test(title)) {
+    title = "Manual Ore Scan: " + title;
+  }
+  var r = await fetch("/api/missions/manual", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ title: title }),
+  });
+  var data = await r.json();
+  if (data.error) { toast("Error: " + data.error); return; }
+  if (data.mission_id) seenMissionIds.add(data.mission_id);
+  toast("Created mission card: " + (data.title || title));
+  if (titleEl) titleEl.value = "Manual Ore Scan";
+  loadMissions();
+}
+
 function populateAddReqControls() {
   var resSel = document.getElementById("add-req-resource");
   var misSel = document.getElementById("add-req-mission");
   if (resSel) {
     var prev = resSel.value;
-    var all = window.RESOURCES || [];
+    var all = window.RESOURCES && window.RESOURCES.length ? window.RESOURCES : FALLBACK_RESOURCES;
     resSel.innerHTML = all.map(function (r) {
       var sig = (window.SIGNATURES || {})[r];
       var label = sig != null ? r + " (" + sig + ")" : r;
@@ -481,24 +528,34 @@ function populateAddReqControls() {
 }
 
 async function initResources() {
+  window.RESOURCES = FALLBACK_RESOURCES.slice();
+  window.SIGNATURES = {};
+  window.CLUSTER_MAX = {
+    Quantanium: 2, Stileron: 2, Savrilium: 2, Ouratite: 3, Riccite: 3, Lindinium: 3,
+    Beryl: 4, Taranite: 4, Borase: 4, Gold: 4, Bexalite: 4,
+    Laranite: 5, Aslarite: 5, Titanium: 5, Tungsten: 5, Agricium: 5, Torite: 5,
+    Hephaestanite: 6, Tin: 6, Quartz: 6, Corundum: 6, Copper: 6, Silicon: 6,
+    Iron: 6, Aluminium: 6, Ice: 6
+  };
   try {
-    window.RESOURCES = await (await fetch("/api/resources")).json();
-    try { window.SIGNATURES = await (await fetch("/api/signatures")).json(); }
-    catch (_) { window.SIGNATURES = {}; }
-    try {
-      window.CLUSTER_MAX = await (await fetch("/api/cluster-max")).json();
-    } catch (_) {
-      window.CLUSTER_MAX = {
-        Quantanium: 2, Stileron: 2, Savrilium: 2, Ouratite: 3, Riccite: 3, Lindinium: 3,
-        Beryl: 4, Taranite: 4, Borase: 4, Gold: 4, Bexalite: 4,
-        Laranite: 5, Aslarite: 5, Titanium: 5, Tungsten: 5, Agricium: 5, Torite: 5,
-        Hephaestanite: 6, Tin: 6, Quartz: 6, Corundum: 6, Copper: 6, Silicon: 6,
-        Iron: 6, Aluminium: 6, Ice: 6
-      };
+    var res = await fetch("/api/resources");
+    if (res.ok) {
+      var list = await res.json();
+      window.RESOURCES = normalizeResourceList(Array.isArray(list) ? list : FALLBACK_RESOURCES);
     }
-    refreshScanDropdown();
-    populateAddReqControls();
-  } catch (e) { console.error(e); }
+  } catch (e) {
+    console.warn("[resources] using fallback list", e);
+  }
+  try {
+    var sigRes = await fetch("/api/signatures");
+    if (sigRes.ok) window.SIGNATURES = await sigRes.json();
+  } catch (_) {}
+  try {
+    var cm = await fetch("/api/cluster-max");
+    if (cm.ok) window.CLUSTER_MAX = await cm.json();
+  } catch (_) {}
+  refreshScanDropdown();
+  populateAddReqControls();
 }
 
 function refreshScanDropdown() {
@@ -517,7 +574,7 @@ function refreshScanDropdown() {
   var needKeys = Object.keys(needed).sort(function (a, b) {
     return needed[b] - needed[a] || a.localeCompare(b);
   });
-  var all = window.RESOURCES || [];
+  var all = (window.RESOURCES && window.RESOURCES.length) ? window.RESOURCES : FALLBACK_RESOURCES;
   var rest = all.filter(function (r) { return !needed[r]; });
   var html = "";
   if (needKeys.length) {
@@ -648,6 +705,7 @@ window.loadActedLog = loadActedLog;
 window.clearActedLog = clearActedLog;
 window.addRequirementToMission = addRequirementToMission;
 window.removeRequirementFromMission = removeRequirementFromMission;
+window.createManualMission = createManualMission;
 
 initResources().then(function () { loadMissions(); });
 setInterval(loadMissions, 8000);
