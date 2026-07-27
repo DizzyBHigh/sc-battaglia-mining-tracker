@@ -11,7 +11,6 @@ const COMMON_RESOURCES = [
   "Torite", "Tungsten",
 ];
 
-/** Battaglia ore-scan style missions only (title keywords) */
 function isMiningScanTitle(title) {
   const s = String(title || "").toLowerCase();
   if (/ocr|screen/.test(s)) return true;
@@ -159,7 +158,6 @@ class MissionStore {
     return true;
   }
 
-  /** Add or increase a single resource requirement on a mission */
   addRequirement(missionId, resource, count = 1) {
     const m = this.missions[missionId];
     if (!m) return false;
@@ -172,6 +170,17 @@ class MissionStore {
       m.status = "completed";
       m.completed_at = new Date().toISOString();
     }
+    this.save();
+    return true;
+  }
+
+  removeRequirement(missionId, resource) {
+    const m = this.missions[missionId];
+    if (!m) return false;
+    const name = String(resource || "").trim();
+    if (!name || !(name in m.requirements)) return false;
+    delete m.requirements[name];
+    delete m.progress[name];
     this.save();
     return true;
   }
