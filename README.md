@@ -103,9 +103,27 @@ If the items to scan do not automaticaslly appear you can click the Re-OCR butto
 
 You can click the new contract from screen while you are on the missions screen to read in the mission you are currently veiwing.
 
-## The overlay 
+## In-game overlay
 
-The overlay will show what resources you need to scan and how many, the resource ID's for that resource.
+Shows **remaining resources to scan** in a small transparent window over Star Citizen.
+
+| Action | How |
+|--------|-----|
+| Show / hide | **Overlay** button in the main app, or **Ctrl+Shift+O** |
+| Move | Drag the overlay panel |
+| Click-through | On by default (mouse goes to the game). **Ctrl+Shift+P** toggles click-through so you can interact with the overlay |
+
+The overlay reads the same live totals as the main UI and refreshes every 2 seconds.
+
+**Tip:** Run Star Citizen in **Borderless** window mode so the overlay can sit on top cleanly. Exclusive fullscreen can hide always-on-top windows on some systems.
+
+## Automatic OCR (once per new mission)
+
+When a new Battaglia mission card is created from `Game.log`, the app runs **one** screen capture + Tesseract.js OCR and fills that mission’s requirements.
+
+- Keep the contract **DETAILS / PRIMARY OBJECTIVES** panel open when accepting.
+- If auto OCR misses the panel, use **From Clipboard**, **Upload**, or **OCR this mission** on the card.
+- There is **no** continuous interval scanning.
 
 ## Best way to scan for resources.
 
@@ -144,27 +162,7 @@ renderer/            UI (HTML + Tesseract.js)
 
 Personal use. Not affiliated with CIG / RSI.
 
-## In-game overlay
 
-Shows **remaining resources to scan** in a small transparent window over Star Citizen.
-
-| Action | How |
-|--------|-----|
-| Show / hide | **Overlay** button in the main app, or **Ctrl+Shift+O** |
-| Move | Drag the overlay panel |
-| Click-through | On by default (mouse goes to the game). **Ctrl+Shift+P** toggles click-through so you can interact with the overlay |
-
-The overlay reads the same live totals as the main UI and refreshes every 2 seconds.
-
-**Tip:** Run Star Citizen in **Borderless** window mode so the overlay can sit on top cleanly. Exclusive fullscreen can hide always-on-top windows on some systems.
-
-## Automatic OCR (once per new mission)
-
-When a new Battaglia mission card is created from `Game.log`, the app runs **one** screen capture + Tesseract.js OCR and fills that mission’s requirements.
-
-- Keep the contract **DETAILS / PRIMARY OBJECTIVES** panel open when accepting.
-- If auto OCR misses the panel, use **From Clipboard**, **Upload**, or **OCR this mission** on the card.
-- There is **no** continuous interval scanning.
 
 ## GitHub Actions
 
