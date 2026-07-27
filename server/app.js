@@ -15,7 +15,6 @@ const {
   DEFAULT_CLUSTER_MAX,
 } = require("./signatures");
 
-/** Canonical resource names for UI dropdowns (aliases stripped). */
 function listResources() {
   const skip = new Set(["Aluminum", "Quantainium", "Savrillium"]);
   const fromSig = Object.keys(RESOURCE_SIGNATURES || {}).filter((k) => !skip.has(k));
@@ -202,10 +201,22 @@ function createServer(options = {}) {
     res.json(store.missions[id].toJSON());
   });
 
+  app.post("/api/missions/clear-completed", (_req, res) => {
+    const n = store.clearCompleted();
+    res.json({ ok: true, removed: n });
+  });
+
   app.get("/api/mission/:id", (req, res) => {
     const m = store.missions[req.params.id];
     if (!m) return res.status(404).json({ error: "not found" });
     res.json(m.toJSON());
+  });
+
+  app.delete("/api/mission/:id", (req, res) => {
+    const id = req.params.id;
+    if (!store.missions[id]) return res.status(404).json({ error: "not found" });
+    store.deleteMission(id);
+    res.json({ ok: true, mission_id: id });
   });
 
   app.post("/api/mission/:id/requirement", (req, res) => {
@@ -311,6 +322,11 @@ function createServer(options = {}) {
         cluster_max: clusterMaxFor(r),
       };
     }
+    const scanStats = store.scanStats ? store.scanStats() : {
+      total_events: store.scan_history.length,
+      total_units: 0,
+      by_resource: {},
+    };
     res.json({
       active_count: active.length,
       completed_count: completed.length,
@@ -321,6 +337,7 @@ function createServer(options = {}) {
       signatures: RESOURCE_SIGNATURES,
       resources: listResources(),
       scan_events: store.scan_history.length,
+      scan_stats: scanStats,
       ocr_available: true,
       ocr_backend: "tesseract.js (browser CDN)",
       log_path: currentLogPath,
