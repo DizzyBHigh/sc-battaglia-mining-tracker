@@ -9,6 +9,7 @@ const { parseRequirements, parseOcrResult } = require("./ocrParse");
 const {
   RESOURCE_SIGNATURES,
   signatureFor,
+  clusterMaxFor,
   signaturesForClusters,
   formatClusterSignatures,
   DEFAULT_CLUSTER_MAX,
@@ -206,6 +207,16 @@ function createServer(options = {}) {
     res.json(store.missions[id].toJSON());
   });
 
+  app.post("/api/mission/:id/requirement/remove", (req, res) => {
+    const id = req.params.id;
+    const resource = (req.body && req.body.resource) || "";
+    if (!resource) return res.status(400).json({ error: "resource required" });
+    if (!store.missions[id]) return res.status(404).json({ error: "not found" });
+    const ok = store.removeRequirement(id, resource);
+    if (!ok) return res.status(400).json({ error: "resource not on mission" });
+    res.json(store.missions[id].toJSON());
+  });
+
   app.post("/api/mission/:id", (req, res) => {
     const id = req.params.id;
     const body = req.body || {};
@@ -253,6 +264,11 @@ function createServer(options = {}) {
     res.json(RESOURCE_SIGNATURES);
   });
 
+  app.get("/api/cluster-max", (_req, res) => {
+    const { CLUSTER_MAX_BY_RESOURCE } = require("./signatures");
+    res.json(CLUSTER_MAX_BY_RESOURCE);
+  });
+
   app.get("/api/stats", (_req, res) => {
     const active = store.activeScanMissions
       ? store.activeScanMissions()
@@ -272,13 +288,14 @@ function createServer(options = {}) {
     const remaining_detailed = {};
     for (const [r, n] of Object.entries(remaining)) {
       const base = signatureFor(r);
-      const clusters = signaturesForClusters(r, DEFAULT_CLUSTER_MAX);
+      const clusters = signaturesForClusters(r);
       remaining_detailed[r] = {
         count: n,
         signature: base,
         signatures: clusters.map((c) => c.signature),
         clusters,
-        signatures_label: formatClusterSignatures(r, DEFAULT_CLUSTER_MAX),
+        signatures_label: formatClusterSignatures(r),
+        cluster_max: clusterMaxFor(r),
       };
     }
     res.json({
