@@ -17,8 +17,8 @@ main{max-width:1200px;margin:0 auto;padding:1.25rem 1.5rem 3rem;display:grid;gri
 .card{background:var(--surface);border:1px solid var(--border);border-radius:10px;padding:1rem 1.15rem;margin-bottom:1rem}
 .card h2{font-size:.95rem;font-weight:600;margin-bottom:.75rem;display:flex;align-items:center;justify-content:space-between}
 .btn{display:inline-flex;align-items:center;gap:.35rem;background:var(--accent);color:#0d1117;border:none;border-radius:6px;padding:.4rem .85rem;font-size:.85rem;font-weight:600;cursor:pointer}.btn:hover{opacity:.9}.btn-ghost{background:transparent;color:var(--muted);border:1px solid var(--border)}.btn-green{background:var(--green)}.btn-orange{background:var(--orange)}.btn-sm{padding:.25rem .55rem;font-size:.8rem}
-select,input[type=number]{background:var(--bg);border:1px solid var(--border);color:var(--text);border-radius:6px;padding:.4rem .6rem;font-size:.9rem;width:100%}
-.scan-row{display:flex;gap:.5rem;align-items:center;margin-bottom:.5rem;flex-wrap:wrap}.scan-row select{flex:1;min-width:120px}
+select,input[type=number],input[type=text]{background:var(--bg);border:1px solid var(--border);color:var(--text);border-radius:6px;padding:.4rem .6rem;font-size:.9rem;width:100%}
+.scan-row{display:flex;gap:.5rem;align-items:center;margin-bottom:.5rem;flex-wrap:wrap}.scan-row select,.scan-row input[type=text]{flex:1;min-width:120px}
 .mission{border:1px solid var(--border);border-radius:8px;padding:.85rem 1rem;margin-bottom:.75rem;background:#0d1117}.mission.complete{border-color:var(--green);opacity:.75}.mission.needs-req{border-color:var(--orange)}
 .mission-header{display:flex;justify-content:space-between;gap:.75rem;margin-bottom:.5rem}.mission-title{font-weight:600}.mission-meta{font-size:.75rem;color:var(--muted)}
 .req-grid{display:flex;flex-direction:column;gap:.45rem;margin-top:.55rem}
@@ -77,6 +77,14 @@ footer{text-align:center;color:var(--muted);font-size:.75rem;padding:1rem}
       <button class="btn btn-green" onclick="recordScan()">Record Scan</button>
     </div>
   </div>
+  <div class="card" id="manual-mission-card">
+    <h2>Create mission card <span style="font-size:.75rem;color:var(--muted);font-weight:400">manual</span></h2>
+    <p style="font-size:.8rem;color:var(--muted);margin-bottom:.55rem">Create an empty active mission without waiting for Game.log. Then add resources below or run OCR.</p>
+    <div class="scan-row">
+      <input type="text" id="manual-mission-title" placeholder="Mission title" value="Manual Ore Scan" style="flex:2"/>
+      <button type="button" class="btn btn-sm" onclick="createManualMission()">Create card</button>
+    </div>
+  </div>
   <div class="card" id="add-req-card">
     <h2>Add resource to mission <span style="font-size:.75rem;color:var(--muted);font-weight:400">manual</span></h2>
     <p style="font-size:.8rem;color:var(--muted);margin-bottom:.55rem">Attach a scan requirement to an active mission (count = how many of that resource to scan).</p>
@@ -112,7 +120,7 @@ footer{text-align:center;color:var(--muted);font-size:.75rem;padding:1rem}
 <aside>
   <div class="card"><h2>How to use</h2>
     <ol style="font-size:.8rem;color:var(--muted);padding-left:1.1rem">
-      <li>Accept missions in-game or use <strong>New contract from screen</strong>.</li>
+      <li>Accept missions in-game, use <strong>Create mission card</strong>, or <strong>New contract from screen</strong>.</li>
       <li>Use <strong>Add resource to mission</strong> if OCR misses a requirement; <strong>Remove</strong> on a row deletes it.</li>
       <li><strong>Re-OCR</strong> captures the screen and refreshes requirements.</li>
       <li>Record Scan applies shared progress across active missions.</li>
