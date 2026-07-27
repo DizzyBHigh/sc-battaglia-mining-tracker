@@ -23,43 +23,25 @@ const RESOURCE_ALIASES = {
   copper: "Copper",
   gold: "Gold",
 
-  // Lindinium — OCR often swaps i ↔ l (and similar)
+  // Lindinium — OCR often swaps i ↔ l
   lindinium: "Lindinium",
-  llndinium: "Lindinium", // L→l, first i→l lookalike start
-  indinium: "Lindinium", // leading L read as I / dropped
-  lndinium: "Lindinium", // first i dropped or read as non-letter
-  lindlnium: "Lindinium", // i→l mid
-  lindiniurn: "Lindinium", // m→rn
+  llndinium: "Lindinium", // Li → Ll
+  indinium: "Lindinium", // leading L lost / read as I then stripped shape
+  lndinium: "Lindinium", // first i dropped
+  lindlnium: "Lindinium", // mid i → l
+  lindiniurn: "Lindinium", // m → rn
   lindinum: "Lindinium", // missing i
-  llndlnium: "Lindinium",
-  lindiniurn: "Lindinium",
-  lindiniurn: "Lindinium",
+  llndlnium: "Lindinium", // multiple i→l
   lindlnlum: "Lindinium",
   llndlnlum: "Lindinium",
-  lindiniurn: "Lindinium",
-  lindiniurn: "Lindinium",
   lindiinium: "Lindinium", // extra i
+  lindillium: "Lindinium",
   linclinium: "Lindinium",
   lindiniurn: "Lindinium",
-  lindiniurn: "Lindinium",
-  lindiniurn: "Lindinium",
-  lindiniurn: "Lindinium",
-  // systematic i/l swaps on "lindinium"
-  llndinium: "Lindinium",
-  lilndinium: "Lindinium",
-  lindillium: "Lindinium",
-  lindiniurn: "Lindinium",
-  lindiniurn: "Lindinium",
-  lindiniurn: "Lindinium",
-  lindiniurn: "Lindinium",
-  lindiniurn: "Lindinium",
-  lindiniurn: "Lindinium",
-  lindiniurn: "Lindinium",
-  lindiniurn: "Lindinium",
-  lindiniurn: "Lindinium",
-  // cleaner unique set
-  lindiniurn: "Lindinium",
-  lindiniurn: "Lindinium",
+  lidinium: "Lindinium",
+  lindiniom: "Lindinium",
+  lindiniun: "Lindinium",
+  lindiniunm: "Lindinium",
 };
 
 const RS_TO_RESOURCE = {
