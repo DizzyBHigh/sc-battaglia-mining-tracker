@@ -19,7 +19,7 @@ main{max-width:1200px;margin:0 auto;padding:1.25rem 1.5rem 3rem;display:grid;gri
 .btn{display:inline-flex;align-items:center;gap:.35rem;background:var(--accent);color:#0d1117;border:none;border-radius:6px;padding:.4rem .85rem;font-size:.85rem;font-weight:600;cursor:pointer}.btn:hover{opacity:.9}.btn-ghost{background:transparent;color:var(--muted);border:1px solid var(--border)}.btn-green{background:var(--green)}.btn-orange{background:var(--orange)}.btn-sm{padding:.25rem .55rem;font-size:.8rem}.btn-danger{background:var(--red);color:#fff}
 select,input[type=number],input[type=text],input[type=date]{background:var(--bg);border:1px solid var(--border);color:var(--text);border-radius:6px;padding:.4rem .6rem;font-size:.9rem;width:100%}
 .scan-row{display:flex;gap:.5rem;align-items:center;margin-bottom:.5rem;flex-wrap:wrap}.scan-row select,.scan-row input[type=text],.scan-row input[type=date]{flex:1;min-width:110px}
-.mission{border:1px solid var(--border);border-radius:8px;padding:.85rem 1rem;margin-bottom:.75rem;background:#0d1117}.mission.complete{border-color:var(--green);opacity:.75}.mission.needs-req{border-color:var(--orange)}
+.mission{border:1px solid var(--border);border-radius:8px;padding:.85rem 1rem;margin-bottom:.75rem;background:#0d1117}.mission.complete{border-color:var(--green);opacity:.75}.mission.abandoned{border-color:var(--muted);opacity:.7}.mission.needs-req{border-color:var(--orange)}
 .mission-header{display:flex;justify-content:space-between;gap:.75rem;margin-bottom:.5rem}.mission-title{font-weight:600}.mission-meta{font-size:.75rem;color:var(--muted)}
 .req-grid{display:flex;flex-direction:column;gap:.45rem;margin-top:.55rem}
 .req-item{background:var(--surface);border-radius:8px;padding:.5rem .7rem;font-size:.82rem;border:1px solid var(--border);display:flex;flex-direction:column;gap:.2rem}
@@ -38,10 +38,6 @@ select,input[type=number],input[type=text],input[type=date]{background:var(--bg)
 .filter-bar{display:flex;flex-wrap:wrap;gap:.45rem;align-items:center;margin-bottom:.75rem;padding:.55rem .65rem;background:rgba(0,0,0,.2);border:1px solid var(--border);border-radius:8px}
 .filter-bar label{font-size:.72rem;color:var(--muted);display:flex;flex-direction:column;gap:.2rem;flex:1;min-width:120px}
 .filter-bar .btn{align-self:flex-end}
-.stat-row{display:flex;justify-content:space-between;align-items:baseline;gap:.5rem;font-size:.82rem;padding:.28rem 0;border-bottom:1px solid var(--border);color:var(--muted)}
-.stat-row strong{color:var(--text);font-variant-numeric:tabular-nums}
-.stat-meta{font-size:.72rem;color:var(--muted)}
-.stat-sub{font-size:.75rem;font-weight:600;color:var(--accent);margin:.55rem 0 .25rem}
 .history-item{font-size:.8rem;padding:.4rem 0;border-bottom:1px solid var(--border);color:var(--muted)}.history-item strong{color:var(--text)}
 .log-panel{max-height:280px;overflow-y:auto;font-family:ui-monospace,Consolas,monospace;font-size:.72rem;line-height:1.35}
 .log-event{padding:.35rem .4rem;border-bottom:1px solid var(--border);color:var(--muted)}
@@ -156,13 +152,9 @@ footer{text-align:center;color:var(--muted);font-size:.75rem;padding:1rem}
     <ol style="font-size:.8rem;color:var(--muted);padding-left:1.1rem">
       <li>Accept missions in-game, use <strong>Create mission card</strong>, or <strong>New contract from screen</strong>.</li>
       <li>Filter missions by resource and accepted date range.</li>
-      <li>Use <strong>Clear completed</strong> or per-card <strong>Delete</strong> to tidy the list.</li>
+      <li>Use <strong>Clear completed</strong> or per-card <strong>Delete</strong> (completed / abandoned) to tidy the list.</li>
       <li>Record Scan applies shared progress across active missions.</li>
     </ol>
-  </div>
-  <div class="card">
-    <h2>Scan stats</h2>
-    <div id="scan-stats-panel" class="empty">—</div>
   </div>
   <div class="card"><h2>Remaining Totals</h2><div id="remaining-totals" class="empty">—</div></div>
   <div class="card"><h2>Recent Scans</h2><div id="history-list" class="empty">—</div></div>
