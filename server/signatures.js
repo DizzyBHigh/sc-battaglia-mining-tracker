@@ -2,7 +2,7 @@
 
 /**
  * Base RS (resource signature) for 1 rock in a cluster.
- * Cluster ping ≈ base × rock count (*1, *2, *3, …).
+ * Cluster ping ≈ base × rock count (*1, *2, … up to max for that resource).
  */
 const RESOURCE_SIGNATURES = {
   Quantanium: 3170,
@@ -36,6 +36,42 @@ const RESOURCE_SIGNATURES = {
   Ice: 4300,
 };
 
+/**
+ * Max cluster size (*N) that appears in-game for each resource.
+ * Do not display more multipliers than listed here.
+ */
+const CLUSTER_MAX_BY_RESOURCE = {
+  Quantanium: 2,
+  Quantainium: 2,
+  Stileron: 2,
+  Savrilium: 2,
+  Savrillium: 2,
+  Ouratite: 3,
+  Riccite: 3,
+  Lindinium: 3,
+  Beryl: 4,
+  Taranite: 4,
+  Borase: 4,
+  Gold: 4,
+  Bexalite: 4,
+  Laranite: 5,
+  Aslarite: 5,
+  Titanium: 5,
+  Tungsten: 5,
+  Agricium: 5,
+  Torite: 5,
+  Hephaestanite: 6,
+  Tin: 6,
+  Quartz: 6,
+  Corundum: 6,
+  Copper: 6,
+  Silicon: 6,
+  Iron: 6,
+  Aluminium: 6,
+  Aluminum: 6,
+  Ice: 6,
+};
+
 const DEFAULT_CLUSTER_MAX = 5;
 
 const RS_TO_RESOURCE = {};
@@ -63,10 +99,24 @@ function signatureFor(resource) {
   return null;
 }
 
-function signaturesForClusters(resource, maxRocks = DEFAULT_CLUSTER_MAX) {
+function clusterMaxFor(resource) {
+  if (!resource) return DEFAULT_CLUSTER_MAX;
+  if (CLUSTER_MAX_BY_RESOURCE[resource] != null) return CLUSTER_MAX_BY_RESOURCE[resource];
+  const lower = String(resource).toLowerCase();
+  for (const [k, v] of Object.entries(CLUSTER_MAX_BY_RESOURCE)) {
+    if (k.toLowerCase() === lower) return v;
+  }
+  return DEFAULT_CLUSTER_MAX;
+}
+
+function signaturesForClusters(resource, maxRocks) {
   const base = signatureFor(resource);
   if (base == null) return [];
-  const n = Math.max(1, Math.min(12, parseInt(maxRocks, 10) || DEFAULT_CLUSTER_MAX));
+  const limit =
+    maxRocks != null && maxRocks !== ""
+      ? parseInt(maxRocks, 10)
+      : clusterMaxFor(resource);
+  const n = Math.max(1, Math.min(12, limit || clusterMaxFor(resource)));
   const out = [];
   for (let i = 1; i <= n; i++) {
     out.push({ rocks: i, signature: base * i });
@@ -79,7 +129,7 @@ function formatSignature(sig) {
   return String(sig);
 }
 
-function formatClusterSignatures(resource, maxRocks = DEFAULT_CLUSTER_MAX) {
+function formatClusterSignatures(resource, maxRocks) {
   const list = signaturesForClusters(resource, maxRocks);
   if (!list.length) return "";
   return list.map((x) => x.signature).join(" · ");
@@ -87,9 +137,11 @@ function formatClusterSignatures(resource, maxRocks = DEFAULT_CLUSTER_MAX) {
 
 module.exports = {
   RESOURCE_SIGNATURES,
+  CLUSTER_MAX_BY_RESOURCE,
   RS_TO_RESOURCE,
   DEFAULT_CLUSTER_MAX,
   signatureFor,
+  clusterMaxFor,
   signaturesForClusters,
   formatSignature,
   formatClusterSignatures,
