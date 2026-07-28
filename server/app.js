@@ -67,7 +67,6 @@ function createServer(options = {}) {
       updatedAt: ts,
     };
 
-    // Log meaningful overlay messages (not the idle Ready baseline)
     const isBaseline = (msg === "Ready" || !msg) && (ph === "idle" || !ph);
     if (!isBaseline) {
       pushActed(
@@ -81,7 +80,6 @@ function createServer(options = {}) {
       clearTimeout(statusClearTimer);
       statusClearTimer = null;
     }
-    // Server also resets to Ready after 5s so polls stay consistent
     if (!isBaseline) {
       statusClearTimer = setTimeout(() => {
         statusClearTimer = null;
@@ -331,21 +329,33 @@ function createServer(options = {}) {
     const completed = Object.values(store.missions).filter(
       (m) => m.status === "completed"
     );
-    const remaining = {};
+    // Sum of remaining across missions (informational)
+    const remaining_sum = {};
+    // Shared progress: one scan applies to every mission → scans needed = max remaining
+    const remaining_shared = {};
     let remaining_mission_count = 0;
     for (const m of active) {
       const rem = m.remaining();
       if (Object.keys(rem).length) remaining_mission_count += 1;
       for (const [r, n] of Object.entries(rem)) {
-        remaining[r] = (remaining[r] || 0) + n;
+        remaining_sum[r] = (remaining_sum[r] || 0) + n;
+        remaining_shared[r] = Math.max(remaining_shared[r] || 0, n);
       }
     }
+    // remaining_totals = shared scans needed (primary)
+    const remaining = remaining_shared;
     const remaining_detailed = {};
-    for (const [r, n] of Object.entries(remaining)) {
+    const allKeys = new Set([
+      ...Object.keys(remaining_sum),
+      ...Object.keys(remaining_shared),
+    ]);
+    for (const r of allKeys) {
       const base = signatureFor(r);
       const clusters = signaturesForClusters(r);
       remaining_detailed[r] = {
-        count: n,
+        count: remaining_shared[r] || 0,
+        shared: remaining_shared[r] || 0,
+        sum: remaining_sum[r] || 0,
         signature: base,
         signatures: clusters.map((c) => c.signature),
         clusters,
@@ -353,16 +363,20 @@ function createServer(options = {}) {
         cluster_max: clusterMaxFor(r),
       };
     }
-    const scanStats = store.scanStats ? store.scanStats() : {
-      total_events: store.scan_history.length,
-      total_units: 0,
-      by_resource: {},
-    };
+    const scanStats = store.scanStats
+      ? store.scanStats()
+      : {
+          total_events: store.scan_history.length,
+          total_units: 0,
+          by_resource: {},
+        };
     res.json({
       active_count: active.length,
       completed_count: completed.length,
       total_missions: Object.keys(store.missions).length,
       remaining_totals: remaining,
+      remaining_shared,
+      remaining_sum,
       remaining_mission_count,
       remaining_detailed,
       signatures: RESOURCE_SIGNATURES,
