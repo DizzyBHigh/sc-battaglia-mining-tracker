@@ -38,13 +38,7 @@ function createServer(options = {}) {
     phase: "idle",
     updatedAt: new Date().toISOString(),
   };
-  function setAppStatus(message, phase = "idle") {
-    appStatus = {
-      message: String(message || ""),
-      phase: phase || "idle",
-      updatedAt: new Date().toISOString(),
-    };
-  }
+  let statusClearTimer = null;
 
   function pushActed(ev, action, detail) {
     const entry = {
@@ -61,6 +55,43 @@ function createServer(options = {}) {
     actedLog.push(entry);
     if (actedLog.length > ACTED_LOG_MAX) actedLog.splice(0, actedLog.length - ACTED_LOG_MAX);
     return entry;
+  }
+
+  function setAppStatus(message, phase = "idle") {
+    const msg = String(message || "Ready");
+    const ph = phase || "idle";
+    const ts = new Date().toISOString();
+    appStatus = {
+      message: msg,
+      phase: ph,
+      updatedAt: ts,
+    };
+
+    // Log meaningful overlay messages (not the idle Ready baseline)
+    const isBaseline = (msg === "Ready" || !msg) && (ph === "idle" || !ph);
+    if (!isBaseline) {
+      pushActed(
+        { kind: "overlay", timestamp: ts },
+        "OVERLAY",
+        msg + (ph && ph !== "idle" ? " [" + ph + "]" : "")
+      );
+    }
+
+    if (statusClearTimer) {
+      clearTimeout(statusClearTimer);
+      statusClearTimer = null;
+    }
+    // Server also resets to Ready after 5s so polls stay consistent
+    if (!isBaseline) {
+      statusClearTimer = setTimeout(() => {
+        statusClearTimer = null;
+        appStatus = {
+          message: "Ready",
+          phase: "idle",
+          updatedAt: new Date().toISOString(),
+        };
+      }, 5000);
+    }
   }
 
   const app = express();
