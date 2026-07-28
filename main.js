@@ -328,6 +328,14 @@ function startBackend() {
 app.whenReady().then(() => {
   startBackend();
   createMainWindow();
+  // Overlay visible by default once the local API is up
+  setTimeout(() => {
+    try {
+      createOverlayWindow();
+    } catch (e) {
+      console.warn("[overlay] default show failed:", e.message);
+    }
+  }, 400);
 
   try {
     globalShortcut.register("CommandOrControl+Shift+O", () => {
