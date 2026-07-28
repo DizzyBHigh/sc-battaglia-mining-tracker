@@ -69,6 +69,11 @@
       color: #d29922;
     }
     .chip .count.zero { color: #3fb950; }
+    .chip .sum {
+      font-weight: 500;
+      font-size: 0.85em;
+      color: #8b949e;
+    }
     .chip .sig {
       font-weight: 600;
       font-variant-numeric: tabular-nums;
@@ -119,7 +124,6 @@
       var ph = phase || "";
       var key = msg + "|" + ph + "|" + (updatedAt || "");
 
-      // Idle/ready: no timed clear
       if (!msg || msg === "Ready" || ph === "idle") {
         if (clearTimer) { clearTimeout(clearTimer); clearTimer = null; }
         st.textContent = msg || "Ready";
@@ -128,7 +132,6 @@
         return;
       }
 
-      // New transient message → show and schedule clear after 5s from receipt
       if (key !== lastStatusKey) {
         lastStatusKey = key;
         st.textContent = msg;
@@ -154,11 +157,13 @@
         const meta = document.getElementById("meta");
         if (meta) {
           meta.textContent = missionN
-            ? ("Across " + missionN + " mission" + (missionN === 1 ? "" : "s"))
+            ? ("Across " + missionN + " mission" + (missionN === 1 ? "" : "s") + " · shared scans")
             : "";
         }
         const list = document.getElementById("list");
-        const rem = s.remaining_totals || {};
+        // remaining_totals is now shared scans needed (max across missions)
+        const rem = s.remaining_shared || s.remaining_totals || {};
+        const sumMap = s.remaining_sum || {};
         const keys = Object.keys(rem).sort();
         if (!keys.length) {
           list.className = "empty";
@@ -169,21 +174,25 @@
         const detailed = s.remaining_detailed || {};
         const sigMap = s.signatures || {};
         list.innerHTML = keys.map((k) => {
-          const n = rem[k];
           const d = detailed[k] || {};
+          const n = d.shared != null ? d.shared : rem[k];
+          const total = d.sum != null ? d.sum : (sumMap[k] != null ? sumMap[k] : n);
           const base = d.signature != null ? d.signature : sigMap[k];
           let clusterList = Array.isArray(d.signatures) && d.signatures.length
             ? d.signatures
             : (base != null ? [base, base * 2, base * 3, base * 4, base * 5] : []);
           const sigNums = clusterList.join(" · ");
-          const label = sigNums
-            ? `${escapeHtml(k)} <span class="count ${n === 0 ? "zero" : ""}">${n}</span> <span class="sig">(${sigNums})</span>`
-            : `${escapeHtml(k)} <span class="count ${n === 0 ? "zero" : ""}">${n}</span>`;
-          const tip = clusterList.length
-            ? clusterList.map((v, i) => "x" + (i + 1) + "=" + v).join("  ")
+          const sumBit = total !== n
+            ? ` <span class="sum">(${total} total)</span>`
             : "";
+          const label = sigNums
+            ? `${escapeHtml(k)} <span class="count ${n === 0 ? "zero" : ""}">${n}</span>${sumBit} <span class="sig">(${sigNums})</span>`
+            : `${escapeHtml(k)} <span class="count ${n === 0 ? "zero" : ""}">${n}</span>${sumBit}`;
+          const tip = `Scans needed (shared): ${n}` +
+            (total !== n ? ` · Sum across missions: ${total}` : "") +
+            (clusterList.length ? " · " + clusterList.map((v, i) => "x" + (i + 1) + "=" + v).join("  ") : "");
           const done = n === 0;
-          return `<div class="chip ${done ? "done" : ""}" title="${escapeHtml(k)} left ${n}${tip ? " · " + tip : ""}">${label}</div>`;
+          return `<div class="chip ${done ? "done" : ""}" title="${escapeHtml(tip)}">${label}</div>`;
         }).join("");
       } catch (e) {
         document.getElementById("list").innerHTML =
