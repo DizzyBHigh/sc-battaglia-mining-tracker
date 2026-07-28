@@ -34,10 +34,12 @@
       overflow: hidden;
       text-overflow: ellipsis;
       -webkit-app-region: drag;
+      transition: opacity 0.25s ease;
     }
     #status.ocr { color: #d29922; }
     #status.ocr_done { color: #3fb950; }
     #status.error { color: #f85149; }
+    #status.fading { opacity: 0.45; }
     #list {
       display: flex;
       flex-wrap: wrap;
@@ -90,6 +92,10 @@
     <div id="list" class="empty">No active requirements</div>
   </div>
   <script>
+    var STATUS_TTL_MS = 5000;
+    var lastStatusKey = "";
+    var clearTimer = null;
+
     function escapeHtml(s) {
       return String(s)
         .replace(/&/g, "&" + "amp;")
@@ -98,14 +104,49 @@
         .replace(/"/g, "&" + "quot;");
     }
 
+    function showReady() {
+      var st = document.getElementById("status");
+      if (!st) return;
+      st.textContent = "Ready";
+      st.className = "";
+      lastStatusKey = "Ready|idle";
+    }
+
+    function applyStatus(message, phase, updatedAt) {
+      var st = document.getElementById("status");
+      if (!st) return;
+      var msg = message || "Ready";
+      var ph = phase || "";
+      var key = msg + "|" + ph + "|" + (updatedAt || "");
+
+      // Idle/ready: no timed clear
+      if (!msg || msg === "Ready" || ph === "idle") {
+        if (clearTimer) { clearTimeout(clearTimer); clearTimer = null; }
+        st.textContent = msg || "Ready";
+        st.className = "";
+        lastStatusKey = key;
+        return;
+      }
+
+      // New transient message → show and schedule clear after 5s from receipt
+      if (key !== lastStatusKey) {
+        lastStatusKey = key;
+        st.textContent = msg;
+        st.className = ph;
+        if (clearTimer) clearTimeout(clearTimer);
+        clearTimer = setTimeout(function () {
+          clearTimer = null;
+          showReady();
+        }, STATUS_TTL_MS);
+      }
+    }
+
     async function refresh() {
       try {
         const r = await fetch("/api/stats");
         const s = await r.json();
-        const st = document.getElementById("status");
         if (s.status) {
-          st.textContent = s.status.message || "Ready";
-          st.className = s.status.phase || "";
+          applyStatus(s.status.message, s.status.phase, s.status.updatedAt);
         }
         const missionN = s.remaining_mission_count != null
           ? s.remaining_mission_count
