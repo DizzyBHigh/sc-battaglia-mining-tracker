@@ -1,5 +1,5 @@
 /**
- * Mission list filters and clear-completed helper.
+ * Mission list filters, clear-completed, shared remaining totals display.
  * Loaded after app.js.
  */
 (function () {
@@ -7,20 +7,14 @@
   var filterFrom = "";
   var filterTo = "";
 
-  /**
-   * Parse datetime-local (YYYY-MM-DDTHH:mm) or date-only values to epoch ms.
-   * from=true → start of day if time omitted; from=false → end of day if omitted.
-   */
   function parseFilterDateTime(s, isStart) {
     if (!s) return null;
     var str = String(s).trim();
     if (!str) return null;
-    // datetime-local: 2026-07-27T14:30
     if (/^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}/.test(str)) {
       var d = new Date(str);
       return isNaN(d.getTime()) ? null : d.getTime();
     }
-    // date-only fallback
     if (/^\d{4}-\d{2}-\d{2}$/.test(str)) {
       var d2 = new Date(str + (isStart ? "T00:00:00" : "T23:59:59.999"));
       return isNaN(d2.getTime()) ? null : d2.getTime();
@@ -83,6 +77,73 @@
     if (typeof renderMissions === "function") renderMissions();
   }
 
+  /** Re-render Remaining Totals with shared scans needed + sum across missions. */
+  function renderRemainingShared(s) {
+    var box = document.getElementById("remaining-totals");
+    if (!box) return;
+    var detailed = s.remaining_detailed || {};
+    var shared = s.remaining_shared || s.remaining_totals || {};
+    var sumMap = s.remaining_sum || {};
+    var keys = Object.keys(shared).length
+      ? Object.keys(shared)
+      : Object.keys(sumMap);
+    keys.sort();
+    if (!keys.length) {
+      box.innerHTML = '<div class="empty">No active requirements</div>';
+      return;
+    }
+    var missionN =
+      s.remaining_mission_count != null ? s.remaining_mission_count : s.active_count || 0;
+    var spread =
+      '<div class="empty" style="margin-bottom:0.35rem;color:var(--muted)">' +
+      "Across <strong style=\"color:var(--text)\">" +
+      missionN +
+      "</strong> mission" +
+      (missionN === 1 ? "" : "s") +
+      " · primary count is <strong style=\"color:var(--text)\">scans needed</strong> (shared)</div>";
+    var sigMap = window.SIGNATURES || {};
+    box.innerHTML =
+      spread +
+      keys
+        .map(function (k) {
+          var d = detailed[k] || {};
+          var need =
+            d.shared != null
+              ? d.shared
+              : shared[k] != null
+                ? shared[k]
+                : 0;
+          var total =
+            d.sum != null ? d.sum : sumMap[k] != null ? sumMap[k] : need;
+          var base = d.signature != null ? d.signature : sigMap[k];
+          var cluster = Array.isArray(d.signatures) && d.signatures.length ? d.signatures : null;
+          if (!cluster && base != null) {
+            cluster = [];
+            var mx = d.cluster_max || 5;
+            for (var i = 1; i <= mx; i++) cluster.push(base * i);
+          }
+          var sigPart =
+            cluster && cluster.length ? " (" + cluster.join(" · ") + ")" : "";
+          return (
+            '<div class="req-item" title="Shared: each scan counts toward every mission that still needs this resource">' +
+            "<span>" +
+            k +
+            ' <strong style="color:var(--orange)">" +
+            need +
+            "</strong> needed" +
+            (total !== need
+              ? ' <span style="color:var(--muted);font-weight:400;font-size:0.85em">· ' +
+                total +
+                " total across missions</span>"
+              : "") +
+            '<span class="sig-label">' +
+            sigPart +
+            "</span></span></div>"
+          );
+        })
+        .join("");
+  }
+
   var _origRender = null;
   function installRenderWrapper() {
     if (typeof window.renderMissions !== "function") return;
@@ -93,7 +154,10 @@
       var saved = cache.slice();
       var filtered = cache.filter(function (m) {
         if (typeof isMiningScanTitle === "function") {
-          if (!isMiningScanTitle(m.title) && !(m.requirements && Object.keys(m.requirements).length))
+          if (
+            !isMiningScanTitle(m.title) &&
+            !(m.requirements && Object.keys(m.requirements).length)
+          )
             return false;
         }
         return missionMatchesFilters(m);
@@ -134,12 +198,15 @@
   }
 
   async function clearCompletedMissions() {
-    var ok = await showConfirm("Remove all completed missions from the tracker? This cannot be undone.", {
-      title: "Clear completed",
-      okText: "Clear all",
-      cancelText: "Cancel",
-      danger: true,
-    });
+    var ok = await showConfirm(
+      "Remove all completed missions from the tracker? This cannot be undone.",
+      {
+        title: "Clear completed",
+        okText: "Clear all",
+        cancelText: "Cancel",
+        danger: true,
+      }
+    );
     if (!ok) return;
     var r = await fetch("/api/missions/clear-completed", { method: "POST" });
     var data = await r.json();
@@ -147,12 +214,14 @@
       if (typeof toast === "function") toast("Error: " + data.error);
       return;
     }
-    if (typeof toast === "function") toast("Removed " + (data.removed || 0) + " completed mission(s)");
+    if (typeof toast === "function")
+      toast("Removed " + (data.removed || 0) + " completed mission(s)");
     if (typeof loadMissions === "function") loadMissions();
   }
 
   document.addEventListener("click", function (ev) {
-    var btn = ev.target && ev.target.closest ? ev.target.closest("[data-act=delete]") : null;
+    var btn =
+      ev.target && ev.target.closest ? ev.target.closest("[data-act=delete]") : null;
     if (!btn) return;
     var mid = btn.getAttribute("data-mid");
     if (mid) deleteMission(mid);
@@ -178,6 +247,13 @@
     window.loadStats = async function () {
       await _origLoadStats();
       populateFilterResourceSelect();
+      try {
+        var r = await fetch("/api/stats");
+        var s = await r.json();
+        renderRemainingShared(s);
+      } catch (e) {
+        console.error(e);
+      }
     };
     window.loadStats.__wrappedFilters = true;
   }
