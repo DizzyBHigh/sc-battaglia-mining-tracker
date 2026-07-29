@@ -227,10 +227,14 @@ function renderMissions() {
     var statusColor = m.status === "completed" ? "var(--green)"
       : m.status === "abandoned" ? "var(--muted)"
       : "var(--orange)";
+    var durationBit = "";
+    if (m.status === "completed" && m.duration_label) {
+      durationBit = " · <strong style=\"color:var(--accent)\">took " + escapeHtml(m.duration_label) + "</strong>";
+    }
     return "<div class=\"mission " + cls + "\"><div class=\"mission-header\"><div>" +
       "<div class=\"mission-title\">" + escapeHtml(m.title) + "</div>" +
       "<div class=\"mission-meta\">" + m.mission_id.slice(0, 8) + "... accepted " + fmtTime(m.accepted_at) +
-      (m.completed_at ? " - done " + fmtTime(m.completed_at) : "") + "</div></div>" +
+      (m.completed_at ? " - done " + fmtTime(m.completed_at) : "") + durationBit + "</div></div>" +
       "<span style=\"font-size:0.75rem;color:" + statusColor + "\">" +
       m.status + "</span></div>" + body + actions + "</div>";
   }).join("");
