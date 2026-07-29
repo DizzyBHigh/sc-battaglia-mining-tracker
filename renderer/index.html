@@ -49,6 +49,7 @@ select,input[type=number],input[type=text],input[type=date],input[type=datetime-
 .log-event .tag.objective{background:var(--border);color:var(--text)}
 .log-event .tag.obj_complete{background:var(--orange)}
 .log-event .tag.mission_ended,.log-event .tag.contract_complete{background:var(--green)}
+.log-event .tag.mineral_deposit,.log-event .tag.deposit{background:var(--orange)}
 .log-event .ts{color:var(--muted)}.log-event .detail{color:var(--text)}.log-event .mid{color:var(--accent);opacity:.85}
 footer{text-align:center;color:var(--muted);font-size:.75rem;padding:1rem}
 #log-path-bar{display:flex;align-items:center;gap:.5rem;width:100%;margin-top:.45rem;padding:.25rem .4rem;border-radius:6px;background:rgba(0,0,0,.25);border:1px solid var(--border);font-size:.72rem;color:var(--muted)}
@@ -62,6 +63,8 @@ footer{text-align:center;color:var(--muted);font-size:.75rem;padding:1rem}
 .modal-body{font-size:.9rem;color:var(--muted);line-height:1.45;margin-bottom:1.1rem;white-space:pre-wrap}
 .modal-actions{display:flex;justify-content:flex-end;gap:.5rem;flex-wrap:wrap}
 .modal-actions .btn{min-width:5rem;justify-content:center}
+#stopwatch-display{font-family:ui-monospace,Consolas,monospace;font-size:1.85rem;font-weight:700;font-variant-numeric:tabular-nums;letter-spacing:.04em;color:var(--accent);line-height:1.2}
+#stopwatch-state{font-size:.72rem;color:var(--muted);text-transform:uppercase;letter-spacing:.06em}
   </style>
 </head>
 <body>
@@ -82,6 +85,21 @@ footer{text-align:center;color:var(--muted);font-size:.75rem;padding:1rem}
 <main>
 <section>
   <div class="banner" id="complete-banner" style="display:none"><strong>Objective(s) just completed!</strong> <span id="complete-msg"></span> → Record Scan</div>
+  <div class="card">
+    <h2>Session timer <span style="font-size:.75rem;color:var(--muted);font-weight:400">stopwatch</span></h2>
+    <p style="font-size:.8rem;color:var(--muted);margin-bottom:.55rem">Time a set of missions: Start when you begin, Finish set when the batch is done.</p>
+    <div style="display:flex;align-items:baseline;justify-content:space-between;gap:1rem;margin-bottom:.65rem;flex-wrap:wrap">
+      <div id="stopwatch-display">00:00.00</div>
+      <div id="stopwatch-state">Stopped</div>
+    </div>
+    <div class="scan-row">
+      <button type="button" class="btn btn-green btn-sm" onclick="startStopwatch()">Start</button>
+      <button type="button" class="btn btn-ghost btn-sm" onclick="pauseStopwatch()">Pause</button>
+      <button type="button" class="btn btn-orange btn-sm" onclick="finishStopwatchSet()" title="Save elapsed as a completed set and reset">Finish set</button>
+      <button type="button" class="btn btn-ghost btn-sm" onclick="resetStopwatch()">Reset</button>
+    </div>
+    <div id="stopwatch-laps" style="margin-top:.35rem"></div>
+  </div>
   <div class="card">
     <h2>Record a Scan <span style="font-size:.75rem;color:var(--muted);font-weight:400">shared</span></h2>
     <div class="scan-row">
@@ -152,10 +170,21 @@ footer{text-align:center;color:var(--muted);font-size:.75rem;padding:1rem}
   <div class="card"><h2>How to use</h2>
     <ol style="font-size:.8rem;color:var(--muted);padding-left:1.1rem">
       <li>Accept missions in-game, use <strong>Create mission card</strong>, or <strong>New contract from screen</strong>.</li>
-      <li>Filter missions by resource and accepted date/time range.</li>
-      <li>Use <strong>Clear completed</strong> or per-card <strong>Delete</strong> (completed / abandoned) to tidy the list.</li>
+      <li>Use the <strong>Session timer</strong> to time a set of missions; Finish set saves the duration.</li>
+      <li>Enable <strong>Deposit sound</strong> for a chime when Game.log reports a mineral deposit ready to scan.</li>
       <li>Record Scan applies shared progress across active missions.</li>
     </ol>
+  </div>
+  <div class="card">
+    <h2>Deposit sound</h2>
+    <p style="font-size:.8rem;color:var(--muted);margin-bottom:.55rem">Plays a short chime when the log contains <strong>Mineral deposit detected</strong> (live tail only).</p>
+    <div class="scan-row">
+      <label style="font-size:.85rem;color:var(--muted);display:inline-flex;align-items:center;gap:.4rem;cursor:pointer;flex:1">
+        <input type="checkbox" id="chk-deposit-sound" checked onchange="onDepositSoundToggle(this)"/>
+        Audible alert on deposit
+      </label>
+      <button type="button" class="btn btn-ghost btn-sm" onclick="testDepositSound()">Test</button>
+    </div>
   </div>
   <div class="card"><h2>Remaining Totals</h2><div id="remaining-totals" class="empty">—</div></div>
   <div class="card"><h2>Recent Scans</h2><div id="history-list" class="empty">—</div></div>
@@ -175,5 +204,6 @@ footer{text-align:center;color:var(--muted);font-size:.75rem;padding:1rem}
 <script src="app.js"></script>
 <script src="ocr-actions.js"></script>
 <script src="mission-ui.js"></script>
+<script src="timer-sound.js"></script>
 </body>
 </html>
