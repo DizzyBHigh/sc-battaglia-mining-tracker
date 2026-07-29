@@ -17,6 +17,28 @@ function isMiningScanTitle(title) {
   return /mining|scan|ore|gathering/.test(s);
 }
 
+function formatDuration(ms) {
+  if (ms == null || ms < 0 || Number.isNaN(ms)) return null;
+  const totalSec = Math.floor(ms / 1000);
+  const h = Math.floor(totalSec / 3600);
+  const m = Math.floor((totalSec % 3600) / 60);
+  const s = totalSec % 60;
+  const pad = (n) => (n < 10 ? "0" + n : String(n));
+  if (h > 0) return pad(h) + ":" + pad(m) + ":" + pad(s);
+  return pad(m) + ":" + pad(s);
+}
+
+function computeDurationMs(acceptedAt, completedAt) {
+  try {
+    const a = Date.parse(acceptedAt);
+    const c = Date.parse(completedAt);
+    if (Number.isNaN(a) || Number.isNaN(c) || c < a) return null;
+    return c - a;
+  } catch (_) {
+    return null;
+  }
+}
+
 class Mission {
   constructor(data = {}) {
     this.mission_id = data.mission_id || "";
@@ -28,6 +50,10 @@ class Mission {
     this.objective_ids = data.objective_ids || [];
     this.notes = data.notes || "";
     this.completed_at = data.completed_at || null;
+    this.duration_ms =
+      data.duration_ms != null
+        ? data.duration_ms
+        : computeDurationMs(this.accepted_at, this.completed_at);
   }
 
   remaining() {
@@ -46,6 +72,15 @@ class Mission {
     return keys.every((r) => (this.progress[r] || 0) >= (this.requirements[r] || 0));
   }
 
+  markCompleted(at) {
+    if (this.status === "completed" && this.completed_at && this.duration_ms != null) {
+      return;
+    }
+    this.status = "completed";
+    this.completed_at = at || this.completed_at || new Date().toISOString();
+    this.duration_ms = computeDurationMs(this.accepted_at, this.completed_at);
+  }
+
   applyScan(resource, count = 1) {
     if (!resource || this.status !== "active") return 0;
     const need = this.requirements[resource];
@@ -56,13 +91,16 @@ class Mission {
     if (applied <= 0) return 0;
     this.progress[resource] = have + applied;
     if (this.isFullyComplete() && this.status === "active") {
-      this.status = "completed";
-      this.completed_at = new Date().toISOString();
+      this.markCompleted(new Date().toISOString());
     }
     return applied;
   }
 
   toJSON() {
+    const duration_ms =
+      this.duration_ms != null
+        ? this.duration_ms
+        : computeDurationMs(this.accepted_at, this.completed_at);
     return {
       mission_id: this.mission_id,
       title: this.title,
@@ -73,6 +111,8 @@ class Mission {
       objective_ids: this.objective_ids,
       notes: this.notes,
       completed_at: this.completed_at,
+      duration_ms,
+      duration_label: formatDuration(duration_ms),
       remaining: this.remaining(),
     };
   }
@@ -151,8 +191,7 @@ class MissionStore {
       if (m.progress[r] == null) m.progress[r] = 0;
     }
     if (m.isFullyComplete()) {
-      m.status = "completed";
-      m.completed_at = m.completed_at || new Date().toISOString();
+      m.markCompleted(m.completed_at || new Date().toISOString());
     }
     this.save();
     return true;
@@ -167,8 +206,7 @@ class MissionStore {
     m.requirements[name] = (m.requirements[name] || 0) + n;
     if (m.progress[name] == null) m.progress[name] = 0;
     if (m.isFullyComplete() && m.status === "active") {
-      m.status = "completed";
-      m.completed_at = new Date().toISOString();
+      m.markCompleted(new Date().toISOString());
     }
     this.save();
     return true;
@@ -206,8 +244,7 @@ class MissionStore {
       if (m.progress[r] == null) m.progress[r] = 0;
     }
     if (m.isFullyComplete() && m.status === "active") {
-      m.status = "completed";
-      m.completed_at = new Date().toISOString();
+      m.markCompleted(new Date().toISOString());
     }
     this.save();
     return true;
@@ -255,9 +292,10 @@ class MissionStore {
   setStatus(missionId, status) {
     const m = this.missions[missionId];
     if (!m) return false;
-    m.status = status;
-    if (status === "completed" && !m.completed_at) {
-      m.completed_at = new Date().toISOString();
+    if (status === "completed") {
+      m.markCompleted(m.completed_at || new Date().toISOString());
+    } else {
+      m.status = status;
     }
     this.save();
     return true;
@@ -282,7 +320,6 @@ class MissionStore {
     return n;
   }
 
-  /** Aggregate recorded scans: total count events and units per resource. */
   scanStats() {
     const byResource = {};
     let totalEvents = 0;
@@ -314,4 +351,10 @@ class MissionStore {
   }
 }
 
-module.exports = { MissionStore, Mission, COMMON_RESOURCES, isMiningScanTitle };
+module.exports = {
+  MissionStore,
+  Mission,
+  COMMON_RESOURCES,
+  isMiningScanTitle,
+  formatDuration,
+};
