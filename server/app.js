@@ -15,13 +15,20 @@ const {
   DEFAULT_CLUSTER_MAX,
 } = require("./signatures");
 
-const MUTED_PLAYER_NAMES = new Set(["player-lock"]);
+const MUTED_PLAYER_NAMES = new Set(["olaria"]);
 
 function listResources() {
   const skip = new Set(["Aluminum", "Quantainium", "Savrillium"]);
   const fromSig = Object.keys(RESOURCE_SIGNATURES || {}).filter((k) => !skip.has(k));
   const set = new Set([...(COMMON_RESOURCES || []), ...fromSig]);
   return Array.from(set).sort((a, b) => a.localeCompare(b));
+}
+
+function formatCredited(credited) {
+  const parts = Object.entries(credited || {})
+    .filter(([, n]) => n > 0)
+    .map(([r, n]) => n + "x " + r);
+  return parts.length ? parts.join(", ") : "";
 }
 
 function createServer(options = {}) {
@@ -174,15 +181,23 @@ function createServer(options = {}) {
       const mid = ev.mission_id;
       const completed = /COMPLETED/i.test(ev.state || "");
       if (completed && store.missions[mid]) {
-        store.setStatus(mid, "completed");
+        const result = store.completeFromLog
+          ? store.completeFromLog(mid, ev.timestamp, "mission-ended")
+          : (store.setStatus(mid, "completed"), { credited: {} });
         const m = store.missions[mid];
         const dur = m && m.toJSON ? m.toJSON().duration_label : null;
+        const credit = formatCredited(result && result.credited);
         pushActed(
           ev,
           "MISSION ENDED",
-          "Auto-completed" + (dur ? " in " + dur : "")
+          "Auto-completed" +
+            (dur ? " in " + dur : "") +
+            (credit ? " · credited " + credit : "")
         );
-        console.log(`[log] MISSION ENDED ${mid.slice(0, 8)}… → completed`);
+        console.log(
+          `[log] MISSION ENDED ${mid.slice(0, 8)}… → completed` +
+            (credit ? " (+" + credit + ")" : "")
+        );
       } else if (completed) {
         pushActed(ev, "MISSION ENDED", "Completed (mission not tracked)");
         console.log(`[log] MISSION ENDED ${mid.slice(0, 8)}… (not in store)`);
@@ -195,17 +210,24 @@ function createServer(options = {}) {
         if (ev.title && store.missions[mid].title !== ev.title) {
           store.missions[mid].title = ev.title;
         }
-        store.setStatus(mid, "completed");
+        const result = store.completeFromLog
+          ? store.completeFromLog(mid, ev.timestamp, "contract-complete")
+          : (store.setStatus(mid, "completed"), { credited: {} });
         const m = store.missions[mid];
         const dur = m && m.toJSON ? m.toJSON().duration_label : null;
+        const credit = formatCredited(result && result.credited);
         pushActed(
           ev,
           "CONTRACT COMPLETE",
           "Auto-completed: " +
             (ev.title || "") +
-            (dur ? " in " + dur : "")
+            (dur ? " in " + dur : "") +
+            (credit ? " · credited " + credit : "")
         );
-        console.log(`[log] CONTRACT COMPLETE ${mid.slice(0, 8)}… → ${ev.title}`);
+        console.log(
+          `[log] CONTRACT COMPLETE ${mid.slice(0, 8)}… → ${ev.title}` +
+            (credit ? " (+" + credit + ")" : "")
+        );
       } else {
         pushActed(ev, "CONTRACT COMPLETE", "Not tracked: " + (ev.title || ""));
         console.log(`[log] CONTRACT COMPLETE ${mid.slice(0, 8)}… (not in store)`);
@@ -263,7 +285,7 @@ function createServer(options = {}) {
       name: playerName,
       muted: playerMuted,
       mute_reason: playerMuted
-        ? "Sorry, player-lock, you are muted."
+        ? "Sorry, Olaria, you are muted."
         : null,
     });
   });
