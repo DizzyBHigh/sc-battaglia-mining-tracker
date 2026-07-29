@@ -15,6 +15,8 @@ const {
   DEFAULT_CLUSTER_MAX,
 } = require("./signatures");
 
+const MUTED_PLAYER_NAMES = new Set(["player-lock"]);
+
 function listResources() {
   const skip = new Set(["Aluminum", "Quantainium", "Savrillium"]);
   const fromSig = Object.keys(RESOURCE_SIGNATURES || {}).filter((k) => !skip.has(k));
@@ -32,9 +34,31 @@ function createServer(options = {}) {
   const recentCompletes = [];
   const actedLog = [];
   const ACTED_LOG_MAX = 200;
-  /** Recent scan-ready alerts for client polling (sound). */
   const scanReadyAlerts = [];
   const SCAN_READY_MAX = 30;
+
+  let playerName = null;
+  let playerMuted = false;
+
+  function notePlayer(name) {
+    if (!name) return;
+    const cleaned = String(name).trim();
+    if (!cleaned) return;
+    playerName = cleaned;
+    if (MUTED_PLAYER_NAMES.has(cleaned.toLowerCase())) {
+      if (!playerMuted) {
+        playerMuted = true;
+        console.log("[player] MUTED:", cleaned);
+        pushActed(
+          { kind: "player", timestamp: new Date().toISOString(), title: cleaned },
+          "MUTED",
+          "Player " + cleaned + " is muted — app locked"
+        );
+      } else {
+        playerMuted = true;
+      }
+    }
+  }
 
   let appStatus = {
     message: "Ready",
@@ -101,6 +125,12 @@ function createServer(options = {}) {
   app.use(express.static(path.join(__dirname, "..", "renderer")));
 
   function onLogEvent(ev) {
+    if (ev.player) notePlayer(ev.player);
+    if (ev.kind === "player") {
+      notePlayer(ev.player);
+      return;
+    }
+
     if (ev.kind === "accept") {
       store.addOrUpdateMission(ev.mission_id, "Ore Scan (accepted)", ev.timestamp);
       pushActed(ev, "ACCEPT", "Created mission card Ore Scan (accepted)");
@@ -145,7 +175,13 @@ function createServer(options = {}) {
       const completed = /COMPLETED/i.test(ev.state || "");
       if (completed && store.missions[mid]) {
         store.setStatus(mid, "completed");
-        pushActed(ev, "MISSION ENDED", "Auto-completed (MissionEnded)");
+        const m = store.missions[mid];
+        const dur = m && m.toJSON ? m.toJSON().duration_label : null;
+        pushActed(
+          ev,
+          "MISSION ENDED",
+          "Auto-completed" + (dur ? " in " + dur : "")
+        );
         console.log(`[log] MISSION ENDED ${mid.slice(0, 8)}… → completed`);
       } else if (completed) {
         pushActed(ev, "MISSION ENDED", "Completed (mission not tracked)");
@@ -160,7 +196,15 @@ function createServer(options = {}) {
           store.missions[mid].title = ev.title;
         }
         store.setStatus(mid, "completed");
-        pushActed(ev, "CONTRACT COMPLETE", "Auto-completed: " + (ev.title || ""));
+        const m = store.missions[mid];
+        const dur = m && m.toJSON ? m.toJSON().duration_label : null;
+        pushActed(
+          ev,
+          "CONTRACT COMPLETE",
+          "Auto-completed: " +
+            (ev.title || "") +
+            (dur ? " in " + dur : "")
+        );
         console.log(`[log] CONTRACT COMPLETE ${mid.slice(0, 8)}… → ${ev.title}`);
       } else {
         pushActed(ev, "CONTRACT COMPLETE", "Not tracked: " + (ev.title || ""));
@@ -213,6 +257,16 @@ function createServer(options = {}) {
   }
 
   if (logPath) startWatching(logPath);
+
+  app.get("/api/player", (_req, res) => {
+    res.json({
+      name: playerName,
+      muted: playerMuted,
+      mute_reason: playerMuted
+        ? "Sorry, player-lock, you are muted."
+        : null,
+    });
+  });
 
   app.get("/api/missions", (req, res) => {
     const activeOnly = req.query.active === "1";
@@ -409,6 +463,8 @@ function createServer(options = {}) {
       ocr_backend: "tesseract.js (browser CDN)",
       log_path: currentLogPath,
       status: appStatus,
+      player: playerName,
+      player_muted: playerMuted,
     });
   });
 
