@@ -54,9 +54,7 @@ class Mission {
       data.duration_ms != null
         ? data.duration_ms
         : computeDurationMs(this.accepted_at, this.completed_at);
-    /** ISO time when each resource line was fully scanned */
     this.resource_completed_at = data.resource_completed_at || {};
-    /** ms from accepted_at (or resource start) until that resource was done */
     this.resource_duration_ms = data.resource_duration_ms || {};
   }
 
@@ -95,6 +93,26 @@ class Mission {
         this.markResourceComplete(r, when);
       }
     }
+  }
+
+  /** Fill progress up to requirements for any shortfall (used on log complete). */
+  fillRemainingProgress(at) {
+    const when = at || new Date().toISOString();
+    const credited = {};
+    for (const [r, need] of Object.entries(this.requirements || {})) {
+      const n = parseInt(need, 10) || 0;
+      if (n <= 0) continue;
+      const have = this.progress[r] || 0;
+      const gap = Math.max(0, n - have);
+      if (gap > 0) {
+        this.progress[r] = have + gap;
+        credited[r] = gap;
+      }
+      if ((this.progress[r] || 0) >= n) {
+        this.markResourceComplete(r, when);
+      }
+    }
+    return credited;
   }
 
   markCompleted(at) {
@@ -319,6 +337,56 @@ class MissionStore {
       applied,
       newly_completed: newlyCompleted,
       event,
+    };
+  }
+
+  /**
+   * MissionEnded / Contract Complete from Game.log:
+   * credit any shortfall as shared scans, then mark this mission completed.
+   * Example: need 3 Iron, have 2 → record 1 Iron (shared) then complete.
+   */
+  completeFromLog(missionId, at, note = "log-complete") {
+    const m = this.missions[missionId];
+    if (!m) return { ok: false, credited: {}, already_done: false };
+
+    const when = at || new Date().toISOString();
+    if (m.status === "completed") {
+      return { ok: true, credited: {}, already_done: true };
+    }
+
+    const remaining = m.remaining();
+    const credited = {};
+    const scanResults = [];
+
+    // While still active, apply shortfalls as real shared scans
+    for (const [resource, count] of Object.entries(remaining)) {
+      const n = parseInt(count, 10) || 0;
+      if (n <= 0) continue;
+      const result = this.recordScan(
+        resource,
+        n,
+        note + " auto-credit " + resource
+      );
+      credited[resource] = n;
+      scanResults.push(result);
+    }
+
+    // Ensure this mission is fully filled and completed even if recordScan
+    // was limited by shared application quirks
+    if (this.missions[missionId] && this.missions[missionId].status === "active") {
+      const left = this.missions[missionId].fillRemainingProgress(when);
+      for (const [r, n] of Object.entries(left)) {
+        credited[r] = (credited[r] || 0) + n;
+      }
+      this.missions[missionId].markCompleted(when);
+      this.save();
+    }
+
+    return {
+      ok: true,
+      credited,
+      already_done: false,
+      scan_results: scanResults,
     };
   }
 
