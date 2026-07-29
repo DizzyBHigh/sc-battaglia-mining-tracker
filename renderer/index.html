@@ -87,7 +87,7 @@ footer{text-align:center;color:var(--muted);font-size:.75rem;padding:1rem}
   <div class="banner" id="complete-banner" style="display:none"><strong>Objective(s) just completed!</strong> <span id="complete-msg"></span> → Record Scan</div>
   <div class="card">
     <h2>Session timer <span style="font-size:.75rem;color:var(--muted);font-weight:400">stopwatch</span></h2>
-    <p style="font-size:.8rem;color:var(--muted);margin-bottom:.55rem">Time a set of missions: Start when you begin, Finish set when the batch is done.</p>
+    <p style="font-size:.8rem;color:var(--muted);margin-bottom:.55rem">Auto-starts when a mission is accepted from Game.log; auto-finishes when no active scan missions remain. Manual controls still work.</p>
     <div style="display:flex;align-items:baseline;justify-content:space-between;gap:1rem;margin-bottom:.65rem;flex-wrap:wrap">
       <div id="stopwatch-display">00:00.00</div>
       <div id="stopwatch-state">Stopped</div>
@@ -98,6 +98,10 @@ footer{text-align:center;color:var(--muted);font-size:.75rem;padding:1rem}
       <button type="button" class="btn btn-orange btn-sm" onclick="finishStopwatchSet()" title="Save elapsed as a completed set and reset">Finish set</button>
       <button type="button" class="btn btn-ghost btn-sm" onclick="resetStopwatch()">Reset</button>
     </div>
+    <label style="font-size:.82rem;color:var(--muted);display:inline-flex;align-items:center;gap:.4rem;cursor:pointer;margin-top:.35rem">
+      <input type="checkbox" id="chk-auto-timer" checked onchange="onAutoTimerToggle(this)"/>
+      Auto timer (start on accept, stop when all done)
+    </label>
     <div id="stopwatch-laps" style="margin-top:.35rem"></div>
   </div>
   <div class="card">
@@ -169,8 +173,8 @@ footer{text-align:center;color:var(--muted);font-size:.75rem;padding:1rem}
 <aside>
   <div class="card"><h2>How to use</h2>
     <ol style="font-size:.8rem;color:var(--muted);padding-left:1.1rem">
-      <li>Accept missions in-game, use <strong>Create mission card</strong>, or <strong>New contract from screen</strong>.</li>
-      <li>Use the <strong>Session timer</strong> to time a set of missions; Finish set saves the duration.</li>
+      <li>Accept missions in-game — the <strong>Session timer</strong> starts automatically from the log.</li>
+      <li>When every active scan mission is completed or abandoned, the timer finishes the set and saves the time.</li>
       <li>Enable <strong>Deposit sound</strong> for a chime when Game.log reports a mineral deposit ready to scan.</li>
       <li>Record Scan applies shared progress across active missions.</li>
     </ol>
