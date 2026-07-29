@@ -54,6 +54,10 @@ class Mission {
       data.duration_ms != null
         ? data.duration_ms
         : computeDurationMs(this.accepted_at, this.completed_at);
+    /** ISO time when each resource line was fully scanned */
+    this.resource_completed_at = data.resource_completed_at || {};
+    /** ms from accepted_at (or resource start) until that resource was done */
+    this.resource_duration_ms = data.resource_duration_ms || {};
   }
 
   remaining() {
@@ -72,13 +76,36 @@ class Mission {
     return keys.every((r) => (this.progress[r] || 0) >= (this.requirements[r] || 0));
   }
 
+  markResourceComplete(resource, at) {
+    if (!resource) return;
+    if (this.resource_completed_at[resource]) return;
+    const when = at || new Date().toISOString();
+    this.resource_completed_at[resource] = when;
+    this.resource_duration_ms[resource] = computeDurationMs(
+      this.accepted_at,
+      when
+    );
+  }
+
+  syncResourceCompletions(at) {
+    const when = at || new Date().toISOString();
+    for (const [r, need] of Object.entries(this.requirements || {})) {
+      const have = this.progress[r] || 0;
+      if (need > 0 && have >= need) {
+        this.markResourceComplete(r, when);
+      }
+    }
+  }
+
   markCompleted(at) {
     if (this.status === "completed" && this.completed_at && this.duration_ms != null) {
+      this.syncResourceCompletions(this.completed_at);
       return;
     }
     this.status = "completed";
     this.completed_at = at || this.completed_at || new Date().toISOString();
     this.duration_ms = computeDurationMs(this.accepted_at, this.completed_at);
+    this.syncResourceCompletions(this.completed_at);
   }
 
   applyScan(resource, count = 1) {
@@ -90,6 +117,9 @@ class Mission {
     const applied = Math.min(room, Math.max(0, count));
     if (applied <= 0) return 0;
     this.progress[resource] = have + applied;
+    if (this.progress[resource] >= need) {
+      this.markResourceComplete(resource, new Date().toISOString());
+    }
     if (this.isFullyComplete() && this.status === "active") {
       this.markCompleted(new Date().toISOString());
     }
@@ -101,6 +131,10 @@ class Mission {
       this.duration_ms != null
         ? this.duration_ms
         : computeDurationMs(this.accepted_at, this.completed_at);
+    const resource_duration_label = {};
+    for (const [r, ms] of Object.entries(this.resource_duration_ms || {})) {
+      resource_duration_label[r] = formatDuration(ms);
+    }
     return {
       mission_id: this.mission_id,
       title: this.title,
@@ -113,6 +147,9 @@ class Mission {
       completed_at: this.completed_at,
       duration_ms,
       duration_label: formatDuration(duration_ms),
+      resource_completed_at: this.resource_completed_at,
+      resource_duration_ms: this.resource_duration_ms,
+      resource_duration_label,
       remaining: this.remaining(),
     };
   }
@@ -190,6 +227,7 @@ class MissionStore {
     for (const r of Object.keys(m.requirements)) {
       if (m.progress[r] == null) m.progress[r] = 0;
     }
+    m.syncResourceCompletions();
     if (m.isFullyComplete()) {
       m.markCompleted(m.completed_at || new Date().toISOString());
     }
@@ -205,6 +243,7 @@ class MissionStore {
     if (!name || !(n > 0)) return false;
     m.requirements[name] = (m.requirements[name] || 0) + n;
     if (m.progress[name] == null) m.progress[name] = 0;
+    m.syncResourceCompletions();
     if (m.isFullyComplete() && m.status === "active") {
       m.markCompleted(new Date().toISOString());
     }
@@ -219,6 +258,8 @@ class MissionStore {
     if (!name || !(name in m.requirements)) return false;
     delete m.requirements[name];
     delete m.progress[name];
+    delete m.resource_completed_at[name];
+    delete m.resource_duration_ms[name];
     this.save();
     return true;
   }
@@ -243,6 +284,7 @@ class MissionStore {
     for (const r of Object.keys(m.requirements)) {
       if (m.progress[r] == null) m.progress[r] = 0;
     }
+    m.syncResourceCompletions();
     if (m.isFullyComplete() && m.status === "active") {
       m.markCompleted(new Date().toISOString());
     }
