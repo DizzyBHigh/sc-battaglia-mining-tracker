@@ -3,7 +3,9 @@
 const fs = require("fs");
 
 const ACCEPT_RE =
-  /<CommsNotifications>.*ReccoBattaglia.*MissionAccept.*Mission:\s*\[([0-9a-f-]{36})\].*Player:/i;
+  /<CommsNotifications>.*ReccoBattaglia.*MissionAccept.*Mission:\s*\[([0-9a-f-]{36})\].*Player:\s*([^\]\s,<"']+)/i;
+const ACCEPT_RE_LOOSE =
+  /<CommsNotifications>.*ReccoBattaglia.*MissionAccept.*Mission:\s*\[([0-9a-f-]{36})\]/i;
 const CONTRACT_RE =
   /Added notification "Contract Accepted:\s*(.+?)\s*<EM4>[\s\S]*?MissionId:\s*\[([0-9a-f-]{36})\]/i;
 const CONTRACT_RE_FALLBACK =
@@ -21,6 +23,15 @@ const CONTRACT_COMPLETE_RE =
 const MINERAL_DEPOSIT_RE = /Mineral deposit detected/i;
 const TIMESTAMP_RE = /^<(\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}\.\d+Z)>/;
 
+// Common Star Citizen log player-name patterns
+const PLAYER_PATTERNS = [
+  /Player:\s*[\["']?([A-Za-z0-9_-]{2,32})[\]"']?/i,
+  /Character(?:Name)?[:\s]+[\["']?([A-Za-z0-9_-]{2,32})[\]"']?/i,
+  /LoginCharacter.*?name[=:\s"']+([A-Za-z0-9_-]{2,32})/i,
+  /AccountLoginCharacterStatus_Character\s+([A-Za-z0-9_-]{2,32})/i,
+  /\[CIG\]\s*Loading character\s+([A-Za-z0-9_-]{2,32})/i,
+];
+
 function extractTs(line) {
   const m = line.match(TIMESTAMP_RE);
   return m ? m[1] : new Date().toISOString();
@@ -33,12 +44,24 @@ function cleanTitle(t) {
     .trim();
 }
 
+function extractPlayerName(line) {
+  for (const re of PLAYER_PATTERNS) {
+    const m = line.match(re);
+    if (m && m[1]) {
+      const name = String(m[1]).trim();
+      if (name && !/^(Player|Character|Name|null|undefined)$/i.test(name)) {
+        return name;
+      }
+    }
+  }
+  return null;
+}
+
 class LogParser {
   constructor(onEvent) {
     this.onEvent = onEvent || (() => {});
     this.pendingAcceptId = null;
     this.lastPos = 0;
-    /** When false, skip noisy live-only events (mineral deposit). */
     this.live = false;
   }
 
@@ -46,12 +69,40 @@ class LogParser {
     line = line.replace(/\n$/, "");
     if (!line) return null;
 
+    // Player identity (any line)
+    const pname = extractPlayerName(line);
+    if (pname) {
+      const pev = {
+        kind: "player",
+        timestamp: extractTs(line),
+        player: pname,
+        raw: line.slice(0, 280),
+      };
+      this.onEvent(pev);
+      // fall through so other patterns on same line still fire
+    }
+
     let m = line.match(ACCEPT_RE);
     if (m) {
       const ev = {
         kind: "accept",
         timestamp: extractTs(line),
         mission_id: m[1],
+        player: (m[2] || "").trim() || null,
+        raw: line.slice(0, 400),
+      };
+      this.pendingAcceptId = m[1];
+      this.onEvent(ev);
+      return ev;
+    }
+
+    m = line.match(ACCEPT_RE_LOOSE);
+    if (m) {
+      const ev = {
+        kind: "accept",
+        timestamp: extractTs(line),
+        mission_id: m[1],
+        player: pname || null,
         raw: line.slice(0, 400),
       };
       this.pendingAcceptId = m[1];
@@ -164,7 +215,6 @@ class LogParser {
       return ev;
     }
 
-    // Live only — history is full of these and would spam alerts
     if (this.live && MINERAL_DEPOSIT_RE.test(line)) {
       const ev = {
         kind: "mineral_deposit",
@@ -177,7 +227,7 @@ class LogParser {
       return ev;
     }
 
-    return null;
+    return pname ? { kind: "player", player: pname } : null;
   }
 
   parseFile(filePath) {
