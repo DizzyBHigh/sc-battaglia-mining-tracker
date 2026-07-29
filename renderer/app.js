@@ -188,6 +188,7 @@ function renderMissions() {
   list.innerHTML = items.map(function (m) {
     var reqs = m.requirements || {};
     var prog = m.progress || {};
+    var resDurLabels = m.resource_duration_label || {};
     var keys = Object.keys(reqs).sort();
     var needsReq = keys.length === 0 && m.status === "active";
     var cls = m.status === "completed" ? "complete"
@@ -200,6 +201,10 @@ function renderMissions() {
         var have = prog[r] || 0;
         var done = need > 0 && have >= need;
         var left = Math.max(0, need - have);
+        var resTook = resDurLabels[r];
+        var timeBit = resTook
+          ? " <span class=\"sep\">|</span> Took <strong style=\"color:var(--accent)\">" + escapeHtml(resTook) + "</strong>"
+          : "";
         var removeBtn = m.status === "active"
           ? " <button type=\"button\" class=\"btn btn-ghost btn-sm req-remove\" data-mid=\"" + m.mission_id +
             "\" data-res=\"" + escapeHtml(r) + "\" data-act=\"remove-req\" title=\"Remove this resource from the mission\">Remove</button>"
@@ -208,7 +213,7 @@ function renderMissions() {
           "<div class=\"req-line-name\">" + escapeHtml(r) + sigLabel(r) + removeBtn + "</div>" +
           "<div class=\"req-line-stats\">Required <strong>" + need + "</strong> <span class=\"sep\">|</span> <strong>" +
           have + "</strong> Scanned <span class=\"sep\">|</span> <strong class=\"" + (left === 0 ? "ok" : "left") + "\">" +
-          left + "</strong> Remaining</div></div>";
+          left + "</strong> Remaining" + timeBit + "</div></div>";
       }).join("") + "</div>";
     } else if (m.status === "active") {
       body = "<div class=\"empty\" style=\"padding:0.6rem 0\">No items to scan yet - open DETAILS and press <strong>Re-OCR</strong>, or use <strong>Add resource to mission</strong>.</div>";
