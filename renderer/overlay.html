@@ -26,20 +26,42 @@
       -webkit-app-region: drag;
       cursor: move;
     }
+    #top-row {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 0.75rem;
+      margin-bottom: 0.15rem;
+      -webkit-app-region: drag;
+    }
     #status {
       font-size: clamp(0.65rem, 1.5vw, 0.8rem);
       color: #8b949e;
-      margin-bottom: 0.25rem;
       white-space: nowrap;
       overflow: hidden;
       text-overflow: ellipsis;
-      -webkit-app-region: drag;
+      flex: 1;
+      min-width: 0;
       transition: opacity 0.25s ease;
     }
     #status.ocr { color: #d29922; }
     #status.ocr_done { color: #3fb950; }
     #status.error { color: #f85149; }
-    #status.fading { opacity: 0.45; }
+    #status.scan_ready { color: #d29922; }
+    #timer {
+      display: none;
+      font-family: ui-monospace, Consolas, monospace;
+      font-size: clamp(0.75rem, 2vw, 0.95rem);
+      font-weight: 700;
+      font-variant-numeric: tabular-nums;
+      color: #58a6ff;
+      letter-spacing: 0.03em;
+      white-space: nowrap;
+      flex-shrink: 0;
+    }
+    #timer.on { display: inline-block; }
+    #timer.running { color: #3fb950; }
+    #timer.paused { color: #d29922; }
     #list {
       display: flex;
       flex-wrap: wrap;
@@ -92,7 +114,10 @@
 </head>
 <body>
   <div id="bar">
-    <div id="status">Ready</div>
+    <div id="top-row">
+      <div id="status">Ready</div>
+      <div id="timer" title="Session timer">00:00</div>
+    </div>
     <div class="meta" id="meta"></div>
     <div id="list" class="empty">No active requirements</div>
   </div>
@@ -107,6 +132,19 @@
         .replace(/</g, "&" + "lt;")
         .replace(/>/g, "&" + "gt;")
         .replace(/"/g, "&" + "quot;");
+    }
+
+    function formatMs(ms) {
+      if (ms < 0) ms = 0;
+      var totalSec = Math.floor(ms / 1000);
+      var h = Math.floor(totalSec / 3600);
+      var m = Math.floor((totalSec % 3600) / 60);
+      var s = totalSec % 60;
+      function pad(n) {
+        return n < 10 ? "0" + n : String(n);
+      }
+      if (h > 0) return pad(h) + ":" + pad(m) + ":" + pad(s);
+      return pad(m) + ":" + pad(s);
     }
 
     function showReady() {
@@ -144,6 +182,31 @@
       }
     }
 
+    function refreshTimer() {
+      var el = document.getElementById("timer");
+      if (!el) return;
+      try {
+        var raw = localStorage.getItem("sc_timer_state");
+        if (!raw) {
+          el.className = "";
+          return;
+        }
+        var st = JSON.parse(raw);
+        if (!st || !st.showOnOverlay) {
+          el.className = "";
+          return;
+        }
+        var ms = st.accumulated || 0;
+        if (st.running && st.startedAt) {
+          ms += Date.now() - st.startedAt;
+        }
+        el.textContent = formatMs(ms);
+        el.className = "on" + (st.running ? " running" : ms > 0 ? " paused" : "");
+      } catch (_) {
+        el.className = "";
+      }
+    }
+
     async function refresh() {
       try {
         const r = await fetch("/api/stats");
@@ -161,7 +224,6 @@
             : "";
         }
         const list = document.getElementById("list");
-        // remaining_totals is now shared scans needed (max across missions)
         const rem = s.remaining_shared || s.remaining_totals || {};
         const sumMap = s.remaining_sum || {};
         const keys = Object.keys(rem).sort();
@@ -201,7 +263,9 @@
     }
 
     refresh();
+    refreshTimer();
     setInterval(refresh, 1000);
+    setInterval(refreshTimer, 200);
   </script>
 </body>
 </html>
