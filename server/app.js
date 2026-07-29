@@ -32,6 +32,9 @@ function createServer(options = {}) {
   const recentCompletes = [];
   const actedLog = [];
   const ACTED_LOG_MAX = 200;
+  /** Recent scan-ready alerts for client polling (sound). */
+  const scanReadyAlerts = [];
+  const SCAN_READY_MAX = 30;
 
   let appStatus = {
     message: "Ready",
@@ -163,6 +166,19 @@ function createServer(options = {}) {
         pushActed(ev, "CONTRACT COMPLETE", "Not tracked: " + (ev.title || ""));
         console.log(`[log] CONTRACT COMPLETE ${mid.slice(0, 8)}… (not in store)`);
       }
+    } else if (ev.kind === "mineral_deposit") {
+      const alert = {
+        id: Date.now() + "-" + Math.random().toString(36).slice(2, 7),
+        timestamp: ev.timestamp || new Date().toISOString(),
+        message: ev.detail || "Mineral deposit detected — ready to scan",
+      };
+      scanReadyAlerts.push(alert);
+      if (scanReadyAlerts.length > SCAN_READY_MAX) {
+        scanReadyAlerts.splice(0, scanReadyAlerts.length - SCAN_READY_MAX);
+      }
+      pushActed(ev, "DEPOSIT", alert.message);
+      setAppStatus(alert.message, "scan_ready");
+      console.log("[log] MINERAL DEPOSIT detected");
     }
   }
 
@@ -309,6 +325,15 @@ function createServer(options = {}) {
     res.json({ ok: true });
   });
 
+  app.get("/api/scan-ready", (req, res) => {
+    const since = req.query.since ? String(req.query.since) : null;
+    let list = scanReadyAlerts.slice();
+    if (since) {
+      list = list.filter((a) => a.timestamp > since || a.id > since);
+    }
+    res.json(list.slice(-10));
+  });
+
   app.get("/api/resources", (_req, res) => {
     res.json(listResources());
   });
@@ -329,9 +354,7 @@ function createServer(options = {}) {
     const completed = Object.values(store.missions).filter(
       (m) => m.status === "completed"
     );
-    // Sum of remaining across missions (informational)
     const remaining_sum = {};
-    // Shared progress: one scan applies to every mission → scans needed = max remaining
     const remaining_shared = {};
     let remaining_mission_count = 0;
     for (const m of active) {
@@ -342,7 +365,6 @@ function createServer(options = {}) {
         remaining_shared[r] = Math.max(remaining_shared[r] || 0, n);
       }
     }
-    // remaining_totals = shared scans needed (primary)
     const remaining = remaining_shared;
     const remaining_detailed = {};
     const allKeys = new Set([
