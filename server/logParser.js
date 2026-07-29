@@ -38,6 +38,8 @@ class LogParser {
     this.onEvent = onEvent || (() => {});
     this.pendingAcceptId = null;
     this.lastPos = 0;
+    /** When false, skip noisy live-only events (mineral deposit). */
+    this.live = false;
   }
 
   processLine(line) {
@@ -162,7 +164,8 @@ class LogParser {
       return ev;
     }
 
-    if (MINERAL_DEPOSIT_RE.test(line)) {
+    // Live only — history is full of these and would spam alerts
+    if (this.live && MINERAL_DEPOSIT_RE.test(line)) {
       const ev = {
         kind: "mineral_deposit",
         timestamp: extractTs(line),
@@ -180,6 +183,7 @@ class LogParser {
   parseFile(filePath) {
     const events = [];
     if (!fs.existsSync(filePath)) return events;
+    this.live = false;
     const content = fs.readFileSync(filePath, "utf8");
     for (const line of content.split(/\r?\n/)) {
       const ev = this.processLine(line);
@@ -188,11 +192,13 @@ class LogParser {
     try {
       this.lastPos = fs.statSync(filePath).size;
     } catch (_) {}
+    this.live = true;
     return events;
   }
 
   tailNewLines(filePath) {
     if (!fs.existsSync(filePath)) return [];
+    this.live = true;
     const size = fs.statSync(filePath).size;
     if (size < this.lastPos) this.lastPos = 0;
     if (size === this.lastPos) return [];
