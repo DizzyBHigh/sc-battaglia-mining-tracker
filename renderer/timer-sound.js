@@ -1,13 +1,13 @@
 /**
  * Session stopwatch + deposit alerts (sound presets / volume).
  * Publishes timer state to localStorage for the overlay.
+ * Completed-set history is not listed here — mission cards show duration.
  */
 (function () {
   var running = false;
   var startedAt = 0;
   var accumulated = 0;
   var tickTimer = null;
-  var laps = [];
   var soundEnabled = true;
   var soundPreset = "chime";
   var soundVolume = 0.7;
@@ -81,31 +81,11 @@
     publishTimerState();
   }
 
-  function renderLaps() {
+  function clearLapsUi() {
     var box = $("stopwatch-laps");
     if (!box) return;
-    if (!laps.length) {
-      box.innerHTML =
-        '<div class="empty" style="padding:0.4rem 0">No completed sets yet</div>';
-      return;
-    }
-    box.innerHTML = laps
-      .slice()
-      .reverse()
-      .slice(0, 8)
-      .map(function (l, i) {
-        return (
-          '<div class="history-item"><strong>Set ' +
-          (laps.length - i) +
-          "</strong> " +
-          formatMs(l.ms) +
-          (l.auto ? ' <span style="color:var(--accent)">(auto)</span>' : "") +
-          '<br/><span style="font-size:0.7rem">' +
-          (l.at || "") +
-          "</span></div>"
-        );
-      })
-      .join("");
+    box.innerHTML = "";
+    box.style.display = "none";
   }
 
   function startTick() {
@@ -150,6 +130,7 @@
     renderClock();
   }
 
+  /** Stop the session timer without logging Set 1/2/3 — times live on mission cards. */
   function finishSet(opts) {
     opts = opts || {};
     var ms = elapsedNow();
@@ -163,25 +144,17 @@
       running = false;
       stopTick();
     }
-    var at = new Date().toLocaleString(undefined, {
-      month: "short",
-      day: "numeric",
-      hour: "2-digit",
-      minute: "2-digit",
-      second: "2-digit",
-    });
-    laps.push({ ms: ms, at: at, auto: !!opts.auto });
-    if (laps.length > 40) laps.shift();
-    renderLaps();
-    try {
-      localStorage.setItem("sc_stopwatch_laps", JSON.stringify(laps));
-    } catch (_) {}
     if (typeof toast === "function") {
       toast(
-        (opts.auto ? "All missions done — set finished in " : "Set finished in ") +
-          formatMs(ms)
+        (opts.auto ? "All missions done — session " : "Session finished in ") +
+          formatMs(ms) +
+          " (see mission cards for times)"
       );
     }
+    try {
+      localStorage.removeItem("sc_stopwatch_laps");
+    } catch (_) {}
+    clearLapsUi();
     resetStopwatch();
   }
 
@@ -323,7 +296,6 @@
         tone(ctx, "triangle", 1568, now, 0.35, 0.16);
         tone(ctx, "sine", 2093, now + 0.02, 0.25, 0.08);
       } else {
-        // chime default
         tone(ctx, "sine", 880, now, 0.12, 0.25);
         tone(ctx, "sine", 1174.7, now + 0.14, 0.18, 0.22);
       }
@@ -388,11 +360,8 @@
 
   function loadPersisted() {
     try {
-      var raw = localStorage.getItem("sc_stopwatch_laps");
-      if (raw) laps = JSON.parse(raw) || [];
-    } catch (_) {
-      laps = [];
-    }
+      localStorage.removeItem("sc_stopwatch_laps");
+    } catch (_) {}
     try {
       var se = localStorage.getItem("sc_deposit_sound");
       if (se != null) soundEnabled = se === "1";
@@ -425,7 +394,7 @@
     if (chkO) chkO.checked = showTimerOnOverlay;
     populateSoundSelect();
     syncVolumeLabel();
-    renderLaps();
+    clearLapsUi();
     renderClock();
   }
 
