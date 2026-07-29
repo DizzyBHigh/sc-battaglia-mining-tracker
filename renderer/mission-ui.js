@@ -43,14 +43,19 @@
     var sel = document.getElementById("filter-resource");
     if (!sel) return;
     var prev = sel.value;
-    var all = (window.RESOURCES && window.RESOURCES.length)
-      ? window.RESOURCES
-      : (typeof FALLBACK_RESOURCES !== "undefined" ? FALLBACK_RESOURCES : []);
+    var all =
+      window.RESOURCES && window.RESOURCES.length
+        ? window.RESOURCES
+        : typeof FALLBACK_RESOURCES !== "undefined"
+          ? FALLBACK_RESOURCES
+          : [];
     sel.innerHTML =
       '<option value="">All resources</option>' +
-      all.map(function (r) {
-        return '<option value="' + r + '">' + r + "</option>";
-      }).join("");
+      all
+        .map(function (r) {
+          return '<option value="' + r + '">' + r + "</option>";
+        })
+        .join("");
     if (prev) sel.value = prev;
   }
 
@@ -77,7 +82,6 @@
     if (typeof renderMissions === "function") renderMissions();
   }
 
-  /** Re-render Remaining Totals with shared scans needed + sum across missions. */
   function renderRemainingShared(s) {
     var box = document.getElementById("remaining-totals");
     if (!box) return;
@@ -93,7 +97,9 @@
       return;
     }
     var missionN =
-      s.remaining_mission_count != null ? s.remaining_mission_count : s.active_count || 0;
+      s.remaining_mission_count != null
+        ? s.remaining_mission_count
+        : s.active_count || 0;
     var spread =
       '<div class="empty" style="margin-bottom:0.35rem;color:var(--muted)">' +
       "Across <strong style=\"color:var(--text)\">" +
@@ -116,7 +122,10 @@
           var total =
             d.sum != null ? d.sum : sumMap[k] != null ? sumMap[k] : need;
           var base = d.signature != null ? d.signature : sigMap[k];
-          var cluster = Array.isArray(d.signatures) && d.signatures.length ? d.signatures : null;
+          var cluster =
+            Array.isArray(d.signatures) && d.signatures.length
+              ? d.signatures
+              : null;
           if (!cluster && base != null) {
             cluster = [];
             var mx = d.cluster_max || 5;
@@ -124,18 +133,20 @@
           }
           var sigPart =
             cluster && cluster.length ? " (" + cluster.join(" · ") + ")" : "";
+          var totalBit =
+            total !== need
+              ? ' <span style="color:var(--muted);font-weight:400;font-size:0.85em">· ' +
+                total +
+                " total across missions</span>"
+              : "";
           return (
             '<div class="req-item" title="Shared: each scan counts toward every mission that still needs this resource">' +
             "<span>" +
             k +
-            ' <strong style="color:var(--orange)">" +
+            ' <strong style="color:var(--orange)">' +
             need +
             "</strong> needed" +
-            (total !== need
-              ? ' <span style="color:var(--muted);font-weight:400;font-size:0.85em">· ' +
-                total +
-                " total across missions</span>"
-              : "") +
+            totalBit +
             '<span class="sig-label">' +
             sigPart +
             "</span></span></div>"
@@ -180,12 +191,15 @@
 
   async function deleteMission(mid) {
     if (!mid) return;
-    var ok = await showConfirm("Permanently remove this mission from the tracker?", {
-      title: "Delete mission",
-      okText: "Delete",
-      cancelText: "Cancel",
-      danger: true,
-    });
+    var ok = await showConfirm(
+      "Permanently remove this mission from the tracker?",
+      {
+        title: "Delete mission",
+        okText: "Delete",
+        cancelText: "Cancel",
+        danger: true,
+      }
+    );
     if (!ok) return;
     var r = await fetch("/api/mission/" + mid, { method: "DELETE" });
     var data = await r.json();
@@ -221,7 +235,9 @@
 
   document.addEventListener("click", function (ev) {
     var btn =
-      ev.target && ev.target.closest ? ev.target.closest("[data-act=delete]") : null;
+      ev.target && ev.target.closest
+        ? ev.target.closest("[data-act=delete]")
+        : null;
     if (!btn) return;
     var mid = btn.getAttribute("data-mid");
     if (mid) deleteMission(mid);
