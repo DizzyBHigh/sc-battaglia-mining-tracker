@@ -18,6 +18,7 @@ const MISSION_ENDED_RE =
   /<MissionEnded>.*mission_id\s+([0-9a-f-]{36})\s+-\s+mission_state\s+(\w+)/i;
 const CONTRACT_COMPLETE_RE =
   /Added notification "Contract Complete:\s*(.+?)\s*<EM4>[\s\S]*?MissionId:\s*\[([0-9a-f-]{36})\]/i;
+const MINERAL_DEPOSIT_RE = /Mineral deposit detected/i;
 const TIMESTAMP_RE = /^<(\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}\.\d+Z)>/;
 
 function extractTs(line) {
@@ -155,6 +156,18 @@ class LogParser {
         objective_id: m[2],
         state: "MISSION_OBJECTIVE_STATE_COMPLETED",
         label: "Scan Asteroids",
+        raw: line.slice(0, 400),
+      };
+      this.onEvent(ev);
+      return ev;
+    }
+
+    if (MINERAL_DEPOSIT_RE.test(line)) {
+      const ev = {
+        kind: "mineral_deposit",
+        timestamp: extractTs(line),
+        mission_id: null,
+        detail: "Mineral deposit detected — ready to scan",
         raw: line.slice(0, 400),
       };
       this.onEvent(ev);
