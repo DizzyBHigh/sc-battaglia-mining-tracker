@@ -1,6 +1,6 @@
 /**
- * Session stopwatch + audible alert when Game.log reports a mineral deposit.
- * Auto-starts on log ACCEPT/CONTRACT; auto-finishes when no active scan missions remain.
+ * Session stopwatch + deposit alerts (sound presets / volume).
+ * Publishes timer state to localStorage for the overlay.
  */
 (function () {
   var running = false;
@@ -9,6 +9,9 @@
   var tickTimer = null;
   var laps = [];
   var soundEnabled = true;
+  var soundPreset = "chime";
+  var soundVolume = 0.7;
+  var showTimerOnOverlay = false;
   var seenAlertIds = {};
   var lastAlertPoll = new Date().toISOString();
   var audioCtx = null;
@@ -16,6 +19,14 @@
   var seenLogAcceptKeys = {};
   var autoTimerEnabled = true;
   var logAcceptBootstrapped = false;
+
+  var SOUND_PRESETS = {
+    chime: { label: "Chime (two-tone)" },
+    ping: { label: "Ping" },
+    soft: { label: "Soft bell" },
+    alert: { label: "Alert blip" },
+    glass: { label: "Glass" },
+  };
 
   function $(id) {
     return document.getElementById(id);
@@ -43,6 +54,21 @@
     return accumulated + (Date.now() - startedAt);
   }
 
+  function publishTimerState() {
+    try {
+      localStorage.setItem(
+        "sc_timer_state",
+        JSON.stringify({
+          running: running,
+          startedAt: startedAt,
+          accumulated: accumulated,
+          showOnOverlay: showTimerOnOverlay,
+          updatedAt: Date.now(),
+        })
+      );
+    } catch (_) {}
+  }
+
   function renderClock() {
     var el = $("stopwatch-display");
     if (el) el.textContent = formatMs(elapsedNow());
@@ -52,6 +78,7 @@
       else if (accumulated) st.textContent = "Paused";
       else st.textContent = "Stopped";
     }
+    publishTimerState();
   }
 
   function renderLaps() {
@@ -175,10 +202,6 @@
     return n;
   }
 
-  /**
-   * When active scan missions drop to zero, finish the timed set.
-   * Baseline on first observation so we do not finish on app load.
-   */
   function checkActiveMissionTransitions() {
     if (!autoTimerEnabled) return;
     var n = countActiveScanMissions();
@@ -192,10 +215,6 @@
     prevActiveCount = n;
   }
 
-  /**
-   * Auto-start when Game.log ACCEPT or CONTRACT is acted on (live only).
-   * First poll only marks seen keys so history does not start the timer.
-   */
   async function pollLogAccepts() {
     if (!autoTimerEnabled) return;
     try {
@@ -244,9 +263,7 @@
         if (seenLogAcceptKeys[key]) continue;
         seenLogAcceptKeys[key] = 1;
 
-        if (!running) {
-          startStopwatch({ auto: true });
-        }
+        if (!running) startStopwatch({ auto: true });
       }
 
       var keys = Object.keys(seenLogAcceptKeys);
@@ -266,31 +283,57 @@
     return audioCtx;
   }
 
-  function playDepositChime() {
+  function volGain(base) {
+    var v = Math.max(0, Math.min(1, soundVolume));
+    return Math.max(0.0001, (base || 0.22) * v);
+  }
+
+  function tone(ctx, type, freq, t0, dur, gain) {
+    var o = ctx.createOscillator();
+    var g = ctx.createGain();
+    o.type = type || "sine";
+    o.frequency.setValueAtTime(freq, t0);
+    g.gain.setValueAtTime(0.0001, t0);
+    g.gain.exponentialRampToValueAtTime(volGain(gain), t0 + 0.015);
+    g.gain.exponentialRampToValueAtTime(0.0001, t0 + dur);
+    o.connect(g);
+    g.connect(ctx.destination);
+    o.start(t0);
+    o.stop(t0 + dur + 0.03);
+  }
+
+  function playPreset(name) {
     if (!soundEnabled) return;
     try {
       var ctx = ensureAudio();
       if (!ctx) return;
       if (ctx.state === "suspended") ctx.resume();
       var now = ctx.currentTime;
-      function beep(freq, t0, dur, gain) {
-        var o = ctx.createOscillator();
-        var g = ctx.createGain();
-        o.type = "sine";
-        o.frequency.value = freq;
-        g.gain.setValueAtTime(0.0001, t0);
-        g.gain.exponentialRampToValueAtTime(gain || 0.22, t0 + 0.02);
-        g.gain.exponentialRampToValueAtTime(0.0001, t0 + dur);
-        o.connect(g);
-        g.connect(ctx.destination);
-        o.start(t0);
-        o.stop(t0 + dur + 0.02);
+      var p = name || soundPreset;
+      if (p === "ping") {
+        tone(ctx, "sine", 1320, now, 0.09, 0.28);
+      } else if (p === "soft") {
+        tone(ctx, "sine", 523.25, now, 0.22, 0.18);
+        tone(ctx, "sine", 659.25, now + 0.08, 0.28, 0.14);
+      } else if (p === "alert") {
+        tone(ctx, "square", 740, now, 0.07, 0.12);
+        tone(ctx, "square", 740, now + 0.12, 0.07, 0.12);
+        tone(ctx, "square", 988, now + 0.24, 0.1, 0.14);
+      } else if (p === "glass") {
+        tone(ctx, "triangle", 1568, now, 0.35, 0.16);
+        tone(ctx, "sine", 2093, now + 0.02, 0.25, 0.08);
+      } else {
+        // chime default
+        tone(ctx, "sine", 880, now, 0.12, 0.25);
+        tone(ctx, "sine", 1174.7, now + 0.14, 0.18, 0.22);
       }
-      beep(880, now, 0.12, 0.25);
-      beep(1174.7, now + 0.14, 0.18, 0.22);
     } catch (e) {
       console.warn("[sound]", e);
     }
+  }
+
+  function playDepositChime() {
+    playPreset(soundPreset);
   }
 
   async function pollScanReady() {
@@ -318,6 +361,31 @@
     } catch (_) {}
   }
 
+  function populateSoundSelect() {
+    var sel = $("deposit-sound-preset");
+    if (!sel) return;
+    var prev = soundPreset;
+    sel.innerHTML = Object.keys(SOUND_PRESETS)
+      .map(function (k) {
+        return (
+          '<option value="' +
+          k +
+          '">' +
+          SOUND_PRESETS[k].label +
+          "</option>"
+        );
+      })
+      .join("");
+    if (SOUND_PRESETS[prev]) sel.value = prev;
+  }
+
+  function syncVolumeLabel() {
+    var lab = $("deposit-sound-vol-label");
+    if (lab) lab.textContent = Math.round(soundVolume * 100) + "%";
+    var sl = $("deposit-sound-volume");
+    if (sl) sl.value = String(Math.round(soundVolume * 100));
+  }
+
   function loadPersisted() {
     try {
       var raw = localStorage.getItem("sc_stopwatch_laps");
@@ -333,10 +401,30 @@
       var at = localStorage.getItem("sc_auto_timer");
       if (at != null) autoTimerEnabled = at === "1";
     } catch (_) {}
+    try {
+      var sp = localStorage.getItem("sc_deposit_sound_preset");
+      if (sp && SOUND_PRESETS[sp]) soundPreset = sp;
+    } catch (_) {}
+    try {
+      var sv = localStorage.getItem("sc_deposit_sound_volume");
+      if (sv != null) {
+        var n = parseFloat(sv);
+        if (!isNaN(n)) soundVolume = Math.max(0, Math.min(1, n));
+      }
+    } catch (_) {}
+    try {
+      var ot = localStorage.getItem("sc_timer_on_overlay");
+      if (ot != null) showTimerOnOverlay = ot === "1";
+    } catch (_) {}
+
     var chk = $("chk-deposit-sound");
     if (chk) chk.checked = soundEnabled;
     var chkT = $("chk-auto-timer");
     if (chkT) chkT.checked = autoTimerEnabled;
+    var chkO = $("chk-timer-overlay");
+    if (chkO) chkO.checked = showTimerOnOverlay;
+    populateSoundSelect();
+    syncVolumeLabel();
     renderLaps();
     renderClock();
   }
@@ -350,6 +438,27 @@
       ensureAudio();
       playDepositChime();
     }
+  }
+
+  function onSoundPresetChange(sel) {
+    var v = sel && sel.value;
+    if (v && SOUND_PRESETS[v]) {
+      soundPreset = v;
+      try {
+        localStorage.setItem("sc_deposit_sound_preset", soundPreset);
+      } catch (_) {}
+      if (soundEnabled) playDepositChime();
+    }
+  }
+
+  function onSoundVolumeChange(sl) {
+    var n = parseInt(sl && sl.value, 10);
+    if (isNaN(n)) return;
+    soundVolume = Math.max(0, Math.min(100, n)) / 100;
+    try {
+      localStorage.setItem("sc_deposit_sound_volume", String(soundVolume));
+    } catch (_) {}
+    syncVolumeLabel();
   }
 
   function onAutoTimerToggle(chk) {
@@ -366,6 +475,17 @@
     }
   }
 
+  function onTimerOverlayToggle(chk) {
+    showTimerOnOverlay = !!(chk && chk.checked);
+    try {
+      localStorage.setItem("sc_timer_on_overlay", showTimerOnOverlay ? "1" : "0");
+    } catch (_) {}
+    publishTimerState();
+    if (typeof toast === "function") {
+      toast(showTimerOnOverlay ? "Timer shown on overlay" : "Timer hidden from overlay");
+    }
+  }
+
   function testSound() {
     soundEnabled = true;
     var chk = $("chk-deposit-sound");
@@ -374,7 +494,7 @@
       localStorage.setItem("sc_deposit_sound", "1");
     } catch (_) {}
     playDepositChime();
-    if (typeof toast === "function") toast("Test chime");
+    if (typeof toast === "function") toast("Test: " + (SOUND_PRESETS[soundPreset] || {}).label);
   }
 
   window.startStopwatch = function () {
@@ -388,7 +508,10 @@
     finishSet({});
   };
   window.onDepositSoundToggle = onSoundToggle;
+  window.onDepositSoundPresetChange = onSoundPresetChange;
+  window.onDepositSoundVolumeChange = onSoundVolumeChange;
   window.onAutoTimerToggle = onAutoTimerToggle;
+  window.onTimerOverlayToggle = onTimerOverlayToggle;
   window.testDepositSound = testSound;
   window.playDepositChime = playDepositChime;
   window.checkStopwatchMissions = checkActiveMissionTransitions;
@@ -398,6 +521,7 @@
     setInterval(pollScanReady, 1500);
     setInterval(pollLogAccepts, 2000);
     setInterval(checkActiveMissionTransitions, 2000);
+    setInterval(publishTimerState, 250);
     function unlock() {
       ensureAudio();
       document.removeEventListener("click", unlock);
