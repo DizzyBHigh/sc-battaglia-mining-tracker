@@ -178,6 +178,8 @@ class MissionStore {
     this.path = filePath;
     this.missions = {};
     this.scan_history = [];
+    /** Serialize completeFromLog so rapid MissionEnded bursts stay ordered. */
+    this._completeFromLogQueue = Promise.resolve();
     this.load();
   }
 
@@ -341,9 +343,15 @@ class MissionStore {
   }
 
   /**
-   * MissionEnded / Contract Complete from Game.log:
-   * credit any shortfall as shared scans, then mark this mission completed.
-   * Example: need 3 Iron, have 2 → record 1 Iron (shared) then complete.
+   * MissionEnded / Contract Complete from Game.log.
+   *
+   * Safe for rapid successive completions:
+   * 1. Snapshot this mission's shortfall only
+   * 2. Fill + complete THIS mission first (removes it from active pool)
+   * 3. Apply those shortfall counts as shared progress to OTHER still-active
+   *    missions only (no double-count against the mission we just closed)
+   *
+   * Example: need 3 Iron, have 2 → credit 1 Iron to siblings, complete self.
    */
   completeFromLog(missionId, at, note = "log-complete") {
     const m = this.missions[missionId];
@@ -354,39 +362,51 @@ class MissionStore {
       return { ok: true, credited: {}, already_done: true };
     }
 
-    const remaining = m.remaining();
-    const credited = {};
-    const scanResults = [];
+    // Snapshot shortfall before mutating anything
+    const shortfall = { ...m.remaining() };
 
-    // While still active, apply shortfalls as real shared scans
-    for (const [resource, count] of Object.entries(remaining)) {
+    // Fill + complete this mission first so it is no longer "active"
+    const credited = m.fillRemainingProgress(when);
+    m.markCompleted(when);
+
+    const sharedApplied = {};
+
+    // Shared credit goes only to other active scan missions
+    for (const [resource, count] of Object.entries(shortfall)) {
       const n = parseInt(count, 10) || 0;
       if (n <= 0) continue;
-      const result = this.recordScan(
+
+      const appliedTo = [];
+      for (const [mid, other] of Object.entries(this.missions)) {
+        if (mid === missionId) continue;
+        if (other.status !== "active") continue;
+        if (!isMiningScanTitle(other.title)) continue;
+        const got = other.applyScan(resource, n);
+        if (got > 0) appliedTo.push(mid);
+      }
+
+      sharedApplied[resource] = appliedTo;
+      this.scan_history.push({
+        timestamp: when,
         resource,
-        n,
-        note + " auto-credit " + resource
-      );
-      credited[resource] = n;
-      scanResults.push(result);
+        count: n,
+        applied_to: [missionId].concat(appliedTo),
+        note: note + " auto-credit " + resource,
+      });
     }
 
-    // Ensure this mission is fully filled and completed even if recordScan
-    // was limited by shared application quirks
-    if (this.missions[missionId] && this.missions[missionId].status === "active") {
-      const left = this.missions[missionId].fillRemainingProgress(when);
-      for (const [r, n] of Object.entries(left)) {
-        credited[r] = (credited[r] || 0) + n;
-      }
-      this.missions[missionId].markCompleted(when);
-      this.save();
+    // Ensure credited map reflects what we filled on this mission
+    for (const [r, n] of Object.entries(credited)) {
+      if (!shortfall[r]) shortfall[r] = n;
     }
+
+    this.save();
 
     return {
       ok: true,
-      credited,
+      credited: shortfall,
+      shared_applied: sharedApplied,
       already_done: false,
-      scan_results: scanResults,
     };
   }
 
