@@ -432,6 +432,7 @@ function createServer(options = {}) {
     );
     const remaining_sum = {};
     const remaining_shared = {};
+    const remaining_mission_by_resource = {};
     let remaining_mission_count = 0;
     for (const m of active) {
       const rem = m.remaining();
@@ -439,6 +440,8 @@ function createServer(options = {}) {
       for (const [r, n] of Object.entries(rem)) {
         remaining_sum[r] = (remaining_sum[r] || 0) + n;
         remaining_shared[r] = Math.max(remaining_shared[r] || 0, n);
+        remaining_mission_by_resource[r] =
+          (remaining_mission_by_resource[r] || 0) + 1;
       }
     }
     const remaining = remaining_shared;
@@ -454,6 +457,7 @@ function createServer(options = {}) {
         count: remaining_shared[r] || 0,
         shared: remaining_shared[r] || 0,
         sum: remaining_sum[r] || 0,
+        missions: remaining_mission_by_resource[r] || 0,
         signature: base,
         signatures: clusters.map((c) => c.signature),
         clusters,
@@ -476,6 +480,7 @@ function createServer(options = {}) {
       remaining_shared,
       remaining_sum,
       remaining_mission_count,
+      remaining_mission_by_resource,
       remaining_detailed,
       signatures: RESOURCE_SIGNATURES,
       resources: listResources(),
