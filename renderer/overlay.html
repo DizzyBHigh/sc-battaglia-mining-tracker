@@ -127,6 +127,7 @@
       flex-shrink: 0;
       -webkit-app-region: no-drag;
       position: relative;
+      z-index: 2;
     }
     body.scan-click .scan-hit {
       display: inline-block;
@@ -158,10 +159,10 @@
       -webkit-app-region: drag;
     }
 
-    /* Custom tooltip */
+    /* Custom tooltip — kept under the circle in stacking order */
     #tip {
       position: fixed;
-      z-index: 9999;
+      z-index: 1;
       max-width: min(320px, calc(100vw - 16px));
       padding: 0.45rem 0.65rem;
       border-radius: 8px;
@@ -268,6 +269,37 @@
       el.setAttribute("aria-hidden", "true");
     }
 
+    function rectsOverlap(a, b, gap) {
+      gap = gap == null ? 6 : gap;
+      return !(
+        a.right + gap <= b.left ||
+        a.left - gap >= b.right ||
+        a.bottom + gap <= b.top ||
+        a.top - gap >= b.bottom
+      );
+    }
+
+    function getAvoidRect(anchor) {
+      if (!anchor || !anchor.querySelector) return null;
+      var hit = anchor.querySelector(".scan-hit");
+      if (!hit) return null;
+      try {
+        var cs = window.getComputedStyle(hit);
+        if (cs.display === "none" || cs.visibility === "hidden" || cs.opacity === "0") {
+          return null;
+        }
+      } catch (_) {}
+      var r = hit.getBoundingClientRect();
+      if (!r.width || !r.height) return null;
+      // Expand slightly so tip keeps clear of the hit target
+      return {
+        left: r.left - 4,
+        top: r.top - 4,
+        right: r.right + 4,
+        bottom: r.bottom + 4,
+      };
+    }
+
     function showTip(anchor, html) {
       var el = getTip();
       if (!el || !anchor || !html) return;
@@ -279,21 +311,61 @@
       el.classList.add("visible");
       el.setAttribute("aria-hidden", "false");
 
-      // Measure after content is set
       var rect = anchor.getBoundingClientRect();
       var tipW = el.offsetWidth || 200;
       var tipH = el.offsetHeight || 40;
-      var pad = 8;
-      var left = rect.left + rect.width / 2 - tipW / 2;
-      left = Math.max(pad, Math.min(left, window.innerWidth - tipW - pad));
+      var pad = 6;
+      var gap = 8;
+      var avoid = getAvoidRect(anchor);
 
-      // Prefer above the chip; fall below if not enough room
-      var top = rect.top - tipH - 8;
-      if (top < pad) top = rect.bottom + 8;
-      top = Math.max(pad, Math.min(top, window.innerHeight - tipH - pad));
+      // Prefer placing tip to the RIGHT of the circle / chip so the hit target stays free
+      var afterCircleX = avoid ? avoid.right + gap : rect.left + 24;
+      var candidates = [
+        // Above, starting past the circle
+        { left: afterCircleX, top: rect.top - tipH - gap },
+        // Above, centered on chip (only used if it clears the circle)
+        { left: rect.left + rect.width / 2 - tipW / 2, top: rect.top - tipH - gap },
+        // Right of chip
+        { left: rect.right + gap, top: rect.top + (rect.height - tipH) / 2 },
+        // Right of circle, vertically aligned with chip
+        { left: afterCircleX, top: rect.top },
+        // Left of chip
+        { left: rect.left - tipW - gap, top: rect.top + (rect.height - tipH) / 2 },
+        // Below, starting past the circle
+        { left: afterCircleX, top: rect.bottom + gap },
+        // Below centered
+        { left: rect.left + rect.width / 2 - tipW / 2, top: rect.bottom + gap },
+      ];
 
-      el.style.left = left + "px";
-      el.style.top = top + "px";
+      var chosen = null;
+      for (var i = 0; i < candidates.length; i++) {
+        var c = candidates[i];
+        var L = Math.max(pad, Math.min(c.left, window.innerWidth - tipW - pad));
+        var T = Math.max(pad, Math.min(c.top, window.innerHeight - tipH - pad));
+        var tipBox = { left: L, top: T, right: L + tipW, bottom: T + tipH };
+        if (avoid && rectsOverlap(tipBox, avoid, 0)) continue;
+        chosen = { left: L, top: T };
+        break;
+      }
+
+      if (!chosen) {
+        // Last resort: force to the right of the circle / chip
+        var L2 = Math.max(
+          pad,
+          Math.min(
+            avoid ? avoid.right + gap : rect.right + gap,
+            window.innerWidth - tipW - pad
+          )
+        );
+        var T2 = Math.max(
+          pad,
+          Math.min(rect.top - tipH - gap, window.innerHeight - tipH - pad)
+        );
+        chosen = { left: L2, top: T2 };
+      }
+
+      el.style.left = chosen.left + "px";
+      el.style.top = chosen.top + "px";
     }
 
     function scheduleHideTip() {
