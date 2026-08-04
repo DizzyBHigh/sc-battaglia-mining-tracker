@@ -68,6 +68,7 @@ function setOverlayFontDelta(n) {
   n = Math.max(OVERLAY_FONT_DELTA_MIN, Math.min(OVERLAY_FONT_DELTA_MAX, n | 0));
   try {
     localStorage.setItem("sc_overlay_font_delta", String(n));
+    localStorage.setItem("sc_overlay_font_bump", String(Date.now()));
   } catch (_) {}
   var el = document.getElementById("overlay-font-delta");
   if (el) el.textContent = (n > 0 ? "+" : "") + n;
@@ -96,6 +97,7 @@ function onOverlayFontFamilyChange(sel) {
   var v = (sel && sel.value) || "Segoe UI, system-ui, sans-serif";
   try {
     localStorage.setItem("sc_overlay_font_family", v);
+    localStorage.setItem("sc_overlay_font_bump", String(Date.now()));
   } catch (_) {}
   toast("Overlay font updated");
 }
