@@ -74,8 +74,8 @@
       display: inline-flex;
       flex-wrap: wrap;
       align-items: center;
-      gap: 0.2rem 0.35rem;
-      padding: 0.2rem 0.55rem;
+      gap: 0.25rem 0.4rem;
+      padding: 0.2rem 0.55rem 0.2rem 0.35rem;
       border-radius: 999px;
       background: rgba(22, 27, 34, 0.95);
       border: 1px solid #30363d;
@@ -104,6 +104,45 @@
       white-space: nowrap;
       font-size: clamp(0.65rem, 1.6vw, 0.85rem);
     }
+    .scan-hit {
+      display: none;
+      width: 1.05rem;
+      height: 1.05rem;
+      min-width: 1.05rem;
+      min-height: 1.05rem;
+      padding: 0;
+      margin: 0;
+      border-radius: 50%;
+      border: 2px solid #58a6ff;
+      background: rgba(88, 166, 255, 0.25);
+      box-shadow: inset 0 0 0 2px rgba(13, 17, 23, 0.85);
+      cursor: pointer;
+      flex-shrink: 0;
+      -webkit-app-region: no-drag;
+      position: relative;
+    }
+    body.scan-click .scan-hit {
+      display: inline-block;
+    }
+    .scan-hit:hover {
+      background: rgba(88, 166, 255, 0.55);
+      border-color: #79b8ff;
+    }
+    .scan-hit:active {
+      background: #3fb950;
+      border-color: #3fb950;
+      transform: scale(0.92);
+    }
+    .scan-hit.busy {
+      opacity: 0.5;
+      pointer-events: none;
+    }
+    .scan-hit:disabled {
+      opacity: 0.35;
+      cursor: default;
+      border-color: #30363d;
+      background: rgba(48, 54, 61, 0.4);
+    }
     .empty { color: #8b949e; font-size: 0.8rem; }
     .meta {
       font-size: clamp(0.6rem, 1.3vw, 0.75rem);
@@ -126,6 +165,8 @@
     var STATUS_TTL_MS = 5000;
     var lastStatusKey = "";
     var clearTimer = null;
+    var scanClickEnabled = false;
+    var scanBusy = {};
 
     function escapeHtml(s) {
       return String(s)
@@ -146,6 +187,19 @@
       }
       if (h > 0) return pad(h) + ":" + pad(m) + ":" + pad(s);
       return pad(m) + ":" + pad(s);
+    }
+
+    function readScanClickPref() {
+      try {
+        return localStorage.getItem("sc_overlay_scan_click") === "1";
+      } catch (_) {
+        return false;
+      }
+    }
+
+    function applyScanClickMode() {
+      scanClickEnabled = readScanClickPref();
+      document.body.classList.toggle("scan-click", scanClickEnabled);
     }
 
     function showReady() {
@@ -183,6 +237,10 @@
       }
     }
 
+    function flashStatus(msg, phase) {
+      applyStatus(msg, phase || "ocr_done", String(Date.now()));
+    }
+
     function refreshTimer() {
       var el = document.getElementById("timer");
       if (!el) return;
@@ -208,7 +266,54 @@
       }
     }
 
+    async function recordOverlayScan(resource) {
+      if (!resource || scanBusy[resource]) return;
+      scanBusy[resource] = true;
+      var btn = document.querySelector(
+        '.scan-hit[data-resource="' + resource.replace(/"/g, "") + '"]'
+      );
+      if (btn) btn.classList.add("busy");
+      try {
+        var r = await fetch("/api/scan", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            resource: resource,
+            count: 1,
+            note: "overlay-click",
+          }),
+        });
+        var data = await r.json();
+        if (data.error) {
+          flashStatus("Scan failed: " + data.error, "error");
+        } else {
+          var n = Object.keys(data.applied || {}).length;
+          flashStatus(
+            "Recorded 1× " + resource + (n ? " → " + n + " mission(s)" : ""),
+            "ocr_done"
+          );
+        }
+        await refresh();
+      } catch (e) {
+        flashStatus("Scan error", "error");
+      } finally {
+        scanBusy[resource] = false;
+        if (btn) btn.classList.remove("busy");
+      }
+    }
+
+    document.addEventListener("click", function (ev) {
+      var t = ev.target;
+      if (!t || !t.classList || !t.classList.contains("scan-hit")) return;
+      ev.preventDefault();
+      ev.stopPropagation();
+      if (t.disabled) return;
+      var res = t.getAttribute("data-resource");
+      if (res) recordOverlayScan(res);
+    });
+
     async function refresh() {
+      applyScanClickMode();
       try {
         const r = await fetch("/api/stats");
         const s = await r.json();
@@ -248,14 +353,20 @@
           const sumBit = total !== n
             ? ` <span class="sum">(${total} total)</span>`
             : "";
+          const done = n === 0;
+          const hit =
+            `<button type="button" class="scan-hit" data-resource="${escapeHtml(k)}" ` +
+            `title="Record 1× ${escapeHtml(k)} scan"` +
+            (done ? " disabled" : "") +
+            ` aria-label="Record one ${escapeHtml(k)} scan"></button>`;
           const label = sigNums
-            ? `${escapeHtml(k)} <span class="count ${n === 0 ? "zero" : ""}">${n}</span>${sumBit} <span class="sig">(${sigNums})</span>`
-            : `${escapeHtml(k)} <span class="count ${n === 0 ? "zero" : ""}">${n}</span>${sumBit}`;
+            ? `${escapeHtml(k)} <span class="count ${done ? "zero" : ""}">${n}</span>${sumBit} <span class="sig">(${sigNums})</span>`
+            : `${escapeHtml(k)} <span class="count ${done ? "zero" : ""}">${n}</span>${sumBit}`;
           const tip = `Scans needed (shared): ${n}` +
             (total !== n ? ` · Sum across missions: ${total}` : "") +
-            (clusterList.length ? " · " + clusterList.map((v, i) => "x" + (i + 1) + "=" + v).join("  ") : "");
-          const done = n === 0;
-          return `<div class="chip ${done ? "done" : ""}" title="${escapeHtml(tip)}">${label}</div>`;
+            (clusterList.length ? " · " + clusterList.map((v, i) => "x" + (i + 1) + "=" + v).join("  ") : "") +
+            (scanClickEnabled ? " · Click the circle to record 1 scan" : "");
+          return `<div class="chip ${done ? "done" : ""}" title="${escapeHtml(tip)}">${hit}${label}</div>`;
         }).join("");
       } catch (e) {
         document.getElementById("list").innerHTML =
@@ -263,10 +374,15 @@
       }
     }
 
+    applyScanClickMode();
     refresh();
     refreshTimer();
     setInterval(refresh, 1000);
     setInterval(refreshTimer, 200);
+    setInterval(applyScanClickMode, 500);
+    window.addEventListener("storage", function (ev) {
+      if (ev.key === "sc_overlay_scan_click") applyScanClickMode();
+    });
   </script>
 </body>
 </html>
