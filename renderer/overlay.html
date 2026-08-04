@@ -159,61 +159,29 @@
       -webkit-app-region: drag;
     }
 
-    /* Custom tooltip — kept under the circle in stacking order */
     #tip {
       position: fixed;
       z-index: 1;
-      max-width: min(320px, calc(100vw - 16px));
-      padding: 0.45rem 0.65rem;
-      border-radius: 8px;
+      padding: 0.35rem 0.55rem;
+      border-radius: 6px;
       background: rgba(22, 27, 34, 0.96);
       border: 1px solid rgba(88, 166, 255, 0.55);
-      box-shadow: 0 8px 24px rgba(0, 0, 0, 0.45), 0 0 0 1px rgba(13, 17, 23, 0.4);
+      box-shadow: 0 6px 18px rgba(0, 0, 0, 0.4);
       color: #e6edf3;
       font-size: 0.72rem;
-      font-weight: 500;
-      line-height: 1.35;
+      font-weight: 600;
+      line-height: 1.25;
       letter-spacing: 0.01em;
       pointer-events: none;
       opacity: 0;
-      transform: translateY(4px);
+      transform: translateY(3px);
       transition: opacity 0.12s ease, transform 0.12s ease;
       -webkit-app-region: no-drag;
-      white-space: normal;
-      word-break: break-word;
+      white-space: nowrap;
     }
     #tip.visible {
       opacity: 1;
       transform: translateY(0);
-    }
-    #tip .tip-row {
-      display: block;
-    }
-    #tip .tip-row + .tip-row {
-      margin-top: 0.2rem;
-    }
-    #tip .tip-label {
-      color: #8b949e;
-    }
-    #tip .tip-val {
-      color: #e6edf3;
-      font-weight: 600;
-    }
-    #tip .tip-accent {
-      color: #58a6ff;
-    }
-    #tip .tip-purple {
-      color: #a371f7;
-    }
-    #tip .tip-gold {
-      color: #d29922;
-    }
-    #tip .tip-hint {
-      color: #8b949e;
-      font-size: 0.68rem;
-      margin-top: 0.28rem;
-      padding-top: 0.28rem;
-      border-top: 1px solid #30363d;
     }
   </style>
 </head>
@@ -269,72 +237,30 @@
       el.setAttribute("aria-hidden", "true");
     }
 
-    function rectsOverlap(a, b, gap) {
-      gap = gap == null ? 6 : gap;
-      return !(
-        a.right + gap <= b.left ||
-        a.left - gap >= b.right ||
-        a.bottom + gap <= b.top ||
-        a.top - gap >= b.bottom
-      );
-    }
-
-    function getAvoidRect(anchor) {
-      if (!anchor || !anchor.querySelector) return null;
-      var hit = anchor.querySelector(".scan-hit");
-      if (!hit) return null;
-      try {
-        var cs = window.getComputedStyle(hit);
-        if (cs.display === "none" || cs.visibility === "hidden" || cs.opacity === "0") {
-          return null;
-        }
-      } catch (_) {}
-      var r = hit.getBoundingClientRect();
-      if (!r.width || !r.height) return null;
-      // Expand slightly so tip keeps clear of the hit target
-      return {
-        left: r.left - 4,
-        top: r.top - 4,
-        right: r.right + 4,
-        bottom: r.bottom + 4,
-      };
-    }
-
-    function showTip(anchor, html) {
+    /** Place tip next to the circle only — never overlapping it. */
+    function showCircleTip(circle, text) {
       var el = getTip();
-      if (!el || !anchor || !html) return;
+      if (!el || !circle || !text) return;
       if (tipHideTimer) {
         clearTimeout(tipHideTimer);
         tipHideTimer = null;
       }
-      el.innerHTML = html;
+      el.textContent = text;
       el.classList.add("visible");
       el.setAttribute("aria-hidden", "false");
 
-      var rect = anchor.getBoundingClientRect();
-      var tipW = el.offsetWidth || 200;
-      var tipH = el.offsetHeight || 40;
+      var rect = circle.getBoundingClientRect();
+      var tipW = el.offsetWidth || 140;
+      var tipH = el.offsetHeight || 24;
       var pad = 6;
       var gap = 8;
-      var avoid = getAvoidRect(anchor);
 
-      // Prefer placing tip to the RIGHT of the circle / chip so the hit target stays free
-      var afterCircleX = avoid ? avoid.right + gap : rect.left + 24;
+      // Prefer right of circle, then above, then left, then below
       var candidates = [
-        // Above, starting past the circle
-        { left: afterCircleX, top: rect.top - tipH - gap },
-        // Above, centered on chip (only used if it clears the circle)
-        { left: rect.left + rect.width / 2 - tipW / 2, top: rect.top - tipH - gap },
-        // Right of chip
         { left: rect.right + gap, top: rect.top + (rect.height - tipH) / 2 },
-        // Right of circle, vertically aligned with chip
-        { left: afterCircleX, top: rect.top },
-        // Left of chip
+        { left: rect.left + (rect.width - tipW) / 2, top: rect.top - tipH - gap },
         { left: rect.left - tipW - gap, top: rect.top + (rect.height - tipH) / 2 },
-        // Below, starting past the circle
-        { left: afterCircleX, top: rect.bottom + gap },
-        // Below centered
-        { left: rect.left + rect.width / 2 - tipW / 2, top: rect.bottom + gap },
+        { left: rect.left + (rect.width - tipW) / 2, top: rect.bottom + gap },
       ];
 
       var chosen = null;
@@ -343,25 +269,28 @@
         var L = Math.max(pad, Math.min(c.left, window.innerWidth - tipW - pad));
         var T = Math.max(pad, Math.min(c.top, window.innerHeight - tipH - pad));
         var tipBox = { left: L, top: T, right: L + tipW, bottom: T + tipH };
-        if (avoid && rectsOverlap(tipBox, avoid, 0)) continue;
-        chosen = { left: L, top: T };
-        break;
+        var avoid = {
+          left: rect.left - 2,
+          top: rect.top - 2,
+          right: rect.right + 2,
+          bottom: rect.bottom + 2,
+        };
+        var overlaps = !(
+          tipBox.right <= avoid.left ||
+          tipBox.left >= avoid.right ||
+          tipBox.bottom <= avoid.top ||
+          tipBox.top >= avoid.bottom
+        );
+        if (!overlaps) {
+          chosen = { left: L, top: T };
+          break;
+        }
       }
-
       if (!chosen) {
-        // Last resort: force to the right of the circle / chip
-        var L2 = Math.max(
-          pad,
-          Math.min(
-            avoid ? avoid.right + gap : rect.right + gap,
-            window.innerWidth - tipW - pad
-          )
-        );
-        var T2 = Math.max(
-          pad,
-          Math.min(rect.top - tipH - gap, window.innerHeight - tipH - pad)
-        );
-        chosen = { left: L2, top: T2 };
+        chosen = {
+          left: Math.max(pad, Math.min(rect.right + gap, window.innerWidth - tipW - pad)),
+          top: Math.max(pad, Math.min(rect.top, window.innerHeight - tipH - pad)),
+        };
       }
 
       el.style.left = chosen.left + "px";
@@ -376,73 +305,14 @@
       }, 80);
     }
 
-    function tipHtmlFromDataset(el) {
-      var shared = el.getAttribute("data-tip-shared") || "0";
-      var missions = el.getAttribute("data-tip-missions") || "0";
-      var sum = el.getAttribute("data-tip-sum") || "";
-      var clusters = el.getAttribute("data-tip-clusters") || "";
-      var resource = el.getAttribute("data-tip-resource") || "";
-      var rows = [];
-      rows.push(
-        '<span class="tip-row"><span class="tip-label">Resource </span>' +
-          '<span class="tip-val">' +
-          escapeHtml(resource) +
-          "</span></span>"
-      );
-      rows.push(
-        '<span class="tip-row"><span class="tip-label">Shared scans left </span>' +
-          '<span class="tip-gold">' +
-          escapeHtml(shared) +
-          "</span></span>"
-      );
-      if (missions && missions !== "0") {
-        rows.push(
-          '<span class="tip-row"><span class="tip-label">Covers </span>' +
-            '<span class="tip-purple">' +
-            escapeHtml(missions) +
-            " mission" +
-            (missions === "1" ? "" : "s") +
-            "</span></span>"
-        );
-      }
-      if (sum && sum !== shared) {
-        rows.push(
-          '<span class="tip-row"><span class="tip-label">Sum across missions </span>' +
-            '<span class="tip-val">' +
-            escapeHtml(sum) +
-            "</span></span>"
-        );
-      }
-      if (clusters) {
-        rows.push(
-          '<span class="tip-row"><span class="tip-label">Signatures </span>' +
-            '<span class="tip-accent">' +
-            escapeHtml(clusters) +
-            "</span></span>"
-        );
-      }
-      if (scanClickEnabled) {
-        rows.push(
-          '<span class="tip-hint">Click the circle to record 1 shared scan</span>'
-        );
-      }
-      return rows.join("");
-    }
-
     document.addEventListener(
       "mouseover",
       function (ev) {
         var t = ev.target;
-        if (!t) return;
-        var chip = t.closest ? t.closest(".chip[data-tip-resource]") : null;
-        if (chip) {
-          showTip(chip, tipHtmlFromDataset(chip));
-          return;
-        }
-        if (t.classList && t.classList.contains("scan-hit")) {
-          var parent = t.closest(".chip[data-tip-resource]");
-          if (parent) showTip(parent, tipHtmlFromDataset(parent));
-        }
+        if (!t || !t.classList || !t.classList.contains("scan-hit")) return;
+        if (t.disabled) return;
+        var res = t.getAttribute("data-resource") || "resource";
+        showCircleTip(t, "Click to record 1× " + res + " scan");
       },
       true
     );
@@ -451,14 +321,7 @@
       "mouseout",
       function (ev) {
         var t = ev.target;
-        var related = ev.relatedTarget;
-        if (!t) return;
-        var leavingChip =
-          t.closest && t.closest(".chip[data-tip-resource]");
-        if (!leavingChip) return;
-        if (related && related.closest && related.closest(".chip[data-tip-resource]") === leavingChip) {
-          return;
-        }
+        if (!t || !t.classList || !t.classList.contains("scan-hit")) return;
         scheduleHideTip();
       },
       true
@@ -475,6 +338,7 @@
     function applyScanClickMode() {
       scanClickEnabled = readScanClickPref();
       document.body.classList.toggle("scan-click", scanClickEnabled);
+      if (!scanClickEnabled) hideTip();
     }
 
     function showReady() {
@@ -639,9 +503,6 @@
             ? d.signatures
             : (base != null ? [base, base * 2, base * 3, base * 4, base * 5] : []);
           const sigNums = clusterList.join(" · ");
-          const clusterTip = clusterList
-            .map((v, i) => "x" + (i + 1) + "=" + v)
-            .join("  ");
           const sumBit = total !== n
             ? ` <span class="sum">(${total} total)</span>`
             : "";
@@ -652,19 +513,11 @@
           const hit =
             `<button type="button" class="scan-hit" data-resource="${escapeHtml(k)}" ` +
             (done ? " disabled" : "") +
-            ` aria-label="Record one shared ${escapeHtml(k)} scan"></button>`;
+            ` aria-label="Click to record 1 ${escapeHtml(k)} scan"></button>`;
           const label = sigNums
             ? `${escapeHtml(k)} <span class="count ${done ? "zero" : ""}">${n}</span>${missionBit}${sumBit} <span class="sig">(${sigNums})</span>`
             : `${escapeHtml(k)} <span class="count ${done ? "zero" : ""}">${n}</span>${missionBit}${sumBit}`;
-          return (
-            `<div class="chip ${done ? "done" : ""}" ` +
-            `data-tip-resource="${escapeHtml(k)}" ` +
-            `data-tip-shared="${n}" ` +
-            `data-tip-missions="${missionCover}" ` +
-            `data-tip-sum="${total}" ` +
-            `data-tip-clusters="${escapeHtml(clusterTip)}">` +
-            `${hit}${label}</div>`
-          );
+          return `<div class="chip ${done ? "done" : ""}">${hit}${label}</div>`;
         }).join("");
       } catch (e) {
         document.getElementById("list").innerHTML =
