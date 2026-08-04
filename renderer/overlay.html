@@ -266,12 +266,15 @@
       }
     }
 
+    /**
+     * Same shared /api/scan path as the main app Record Scan button:
+     * applies +1 to every active mining/scan mission that still needs this resource.
+     */
     async function recordOverlayScan(resource) {
       if (!resource || scanBusy[resource]) return;
       scanBusy[resource] = true;
-      var btn = document.querySelector(
-        '.scan-hit[data-resource="' + resource.replace(/"/g, "") + '"]'
-      );
+      var safeRes = String(resource).replace(/\\/g, "\\\\").replace(/"/g, '\\"');
+      var btn = document.querySelector('.scan-hit[data-resource="' + safeRes + '"]');
       if (btn) btn.classList.add("busy");
       try {
         var r = await fetch("/api/scan", {
@@ -280,18 +283,24 @@
           body: JSON.stringify({
             resource: resource,
             count: 1,
-            note: "overlay-click",
+            note: "overlay-click shared",
           }),
         });
         var data = await r.json();
         if (data.error) {
           flashStatus("Scan failed: " + data.error, "error");
         } else {
-          var n = Object.keys(data.applied || {}).length;
-          flashStatus(
-            "Recorded 1× " + resource + (n ? " → " + n + " mission(s)" : ""),
-            "ocr_done"
-          );
+          var applied = data.applied || {};
+          var n = Object.keys(applied).length;
+          var completed = (data.newly_completed || []).length;
+          var msg =
+            "Shared 1× " +
+            resource +
+            (n
+              ? " across " + n + " mission" + (n === 1 ? "" : "s")
+              : " (no active mission needed it)");
+          if (completed) msg += " · " + completed + " completed";
+          flashStatus(msg, n ? "ocr_done" : "scan_ready");
         }
         await refresh();
       } catch (e) {
@@ -356,16 +365,16 @@
           const done = n === 0;
           const hit =
             `<button type="button" class="scan-hit" data-resource="${escapeHtml(k)}" ` +
-            `title="Record 1× ${escapeHtml(k)} scan"` +
+            `title="Record 1 shared ${escapeHtml(k)} scan across all active missions"` +
             (done ? " disabled" : "") +
-            ` aria-label="Record one ${escapeHtml(k)} scan"></button>`;
+            ` aria-label="Record one shared ${escapeHtml(k)} scan"></button>`;
           const label = sigNums
             ? `${escapeHtml(k)} <span class="count ${done ? "zero" : ""}">${n}</span>${sumBit} <span class="sig">(${sigNums})</span>`
             : `${escapeHtml(k)} <span class="count ${done ? "zero" : ""}">${n}</span>${sumBit}`;
           const tip = `Scans needed (shared): ${n}` +
             (total !== n ? ` · Sum across missions: ${total}` : "") +
             (clusterList.length ? " · " + clusterList.map((v, i) => "x" + (i + 1) + "=" + v).join("  ") : "") +
-            (scanClickEnabled ? " · Click the circle to record 1 scan" : "");
+            (scanClickEnabled ? " · Click circle = 1 shared scan on every active mission that still needs this" : "");
           return `<div class="chip ${done ? "done" : ""}" title="${escapeHtml(tip)}">${hit}${label}</div>`;
         }).join("");
       } catch (e) {
