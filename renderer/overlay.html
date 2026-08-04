@@ -26,6 +26,7 @@
       backdrop-filter: blur(8px);
       -webkit-app-region: drag;
       cursor: move;
+      position: relative;
     }
     #top-row {
       display: flex;
@@ -156,23 +157,83 @@
       margin-bottom: 0.15rem;
       -webkit-app-region: drag;
     }
+
+    /* Custom tooltip */
+    #tip {
+      position: fixed;
+      z-index: 9999;
+      max-width: min(320px, calc(100vw - 16px));
+      padding: 0.45rem 0.65rem;
+      border-radius: 8px;
+      background: rgba(22, 27, 34, 0.96);
+      border: 1px solid rgba(88, 166, 255, 0.55);
+      box-shadow: 0 8px 24px rgba(0, 0, 0, 0.45), 0 0 0 1px rgba(13, 17, 23, 0.4);
+      color: #e6edf3;
+      font-size: 0.72rem;
+      font-weight: 500;
+      line-height: 1.35;
+      letter-spacing: 0.01em;
+      pointer-events: none;
+      opacity: 0;
+      transform: translateY(4px);
+      transition: opacity 0.12s ease, transform 0.12s ease;
+      -webkit-app-region: no-drag;
+      white-space: normal;
+      word-break: break-word;
+    }
+    #tip.visible {
+      opacity: 1;
+      transform: translateY(0);
+    }
+    #tip .tip-row {
+      display: block;
+    }
+    #tip .tip-row + .tip-row {
+      margin-top: 0.2rem;
+    }
+    #tip .tip-label {
+      color: #8b949e;
+    }
+    #tip .tip-val {
+      color: #e6edf3;
+      font-weight: 600;
+    }
+    #tip .tip-accent {
+      color: #58a6ff;
+    }
+    #tip .tip-purple {
+      color: #a371f7;
+    }
+    #tip .tip-gold {
+      color: #d29922;
+    }
+    #tip .tip-hint {
+      color: #8b949e;
+      font-size: 0.68rem;
+      margin-top: 0.28rem;
+      padding-top: 0.28rem;
+      border-top: 1px solid #30363d;
+    }
   </style>
 </head>
 <body>
   <div id="bar">
     <div id="top-row">
       <div id="status">Ready</div>
-      <div id="timer" title="Session timer">00:00</div>
+      <div id="timer">00:00</div>
     </div>
     <div class="meta" id="meta"></div>
     <div id="list" class="empty">No active requirements</div>
   </div>
+  <div id="tip" role="tooltip" aria-hidden="true"></div>
   <script>
     var STATUS_TTL_MS = 5000;
     var lastStatusKey = "";
     var clearTimer = null;
     var scanClickEnabled = false;
     var scanBusy = {};
+    var tipEl = null;
+    var tipHideTimer = null;
 
     function escapeHtml(s) {
       return String(s)
@@ -194,6 +255,142 @@
       if (h > 0) return pad(h) + ":" + pad(m) + ":" + pad(s);
       return pad(m) + ":" + pad(s);
     }
+
+    function getTip() {
+      if (!tipEl) tipEl = document.getElementById("tip");
+      return tipEl;
+    }
+
+    function hideTip() {
+      var el = getTip();
+      if (!el) return;
+      el.classList.remove("visible");
+      el.setAttribute("aria-hidden", "true");
+    }
+
+    function showTip(anchor, html) {
+      var el = getTip();
+      if (!el || !anchor || !html) return;
+      if (tipHideTimer) {
+        clearTimeout(tipHideTimer);
+        tipHideTimer = null;
+      }
+      el.innerHTML = html;
+      el.classList.add("visible");
+      el.setAttribute("aria-hidden", "false");
+
+      // Measure after content is set
+      var rect = anchor.getBoundingClientRect();
+      var tipW = el.offsetWidth || 200;
+      var tipH = el.offsetHeight || 40;
+      var pad = 8;
+      var left = rect.left + rect.width / 2 - tipW / 2;
+      left = Math.max(pad, Math.min(left, window.innerWidth - tipW - pad));
+
+      // Prefer above the chip; fall below if not enough room
+      var top = rect.top - tipH - 8;
+      if (top < pad) top = rect.bottom + 8;
+      top = Math.max(pad, Math.min(top, window.innerHeight - tipH - pad));
+
+      el.style.left = left + "px";
+      el.style.top = top + "px";
+    }
+
+    function scheduleHideTip() {
+      if (tipHideTimer) clearTimeout(tipHideTimer);
+      tipHideTimer = setTimeout(function () {
+        tipHideTimer = null;
+        hideTip();
+      }, 80);
+    }
+
+    function tipHtmlFromDataset(el) {
+      var shared = el.getAttribute("data-tip-shared") || "0";
+      var missions = el.getAttribute("data-tip-missions") || "0";
+      var sum = el.getAttribute("data-tip-sum") || "";
+      var clusters = el.getAttribute("data-tip-clusters") || "";
+      var resource = el.getAttribute("data-tip-resource") || "";
+      var rows = [];
+      rows.push(
+        '<span class="tip-row"><span class="tip-label">Resource </span>' +
+          '<span class="tip-val">' +
+          escapeHtml(resource) +
+          "</span></span>"
+      );
+      rows.push(
+        '<span class="tip-row"><span class="tip-label">Shared scans left </span>' +
+          '<span class="tip-gold">' +
+          escapeHtml(shared) +
+          "</span></span>"
+      );
+      if (missions && missions !== "0") {
+        rows.push(
+          '<span class="tip-row"><span class="tip-label">Covers </span>' +
+            '<span class="tip-purple">' +
+            escapeHtml(missions) +
+            " mission" +
+            (missions === "1" ? "" : "s") +
+            "</span></span>"
+        );
+      }
+      if (sum && sum !== shared) {
+        rows.push(
+          '<span class="tip-row"><span class="tip-label">Sum across missions </span>' +
+            '<span class="tip-val">' +
+            escapeHtml(sum) +
+            "</span></span>"
+        );
+      }
+      if (clusters) {
+        rows.push(
+          '<span class="tip-row"><span class="tip-label">Signatures </span>' +
+            '<span class="tip-accent">' +
+            escapeHtml(clusters) +
+            "</span></span>"
+        );
+      }
+      if (scanClickEnabled) {
+        rows.push(
+          '<span class="tip-hint">Click the circle to record 1 shared scan</span>'
+        );
+      }
+      return rows.join("");
+    }
+
+    document.addEventListener(
+      "mouseover",
+      function (ev) {
+        var t = ev.target;
+        if (!t) return;
+        var chip = t.closest ? t.closest(".chip[data-tip-resource]") : null;
+        if (chip) {
+          showTip(chip, tipHtmlFromDataset(chip));
+          return;
+        }
+        if (t.classList && t.classList.contains("scan-hit")) {
+          var parent = t.closest(".chip[data-tip-resource]");
+          if (parent) showTip(parent, tipHtmlFromDataset(parent));
+        }
+      },
+      true
+    );
+
+    document.addEventListener(
+      "mouseout",
+      function (ev) {
+        var t = ev.target;
+        var related = ev.relatedTarget;
+        if (!t) return;
+        var leavingChip =
+          t.closest && t.closest(".chip[data-tip-resource]");
+        if (!leavingChip) return;
+        if (related && related.closest && related.closest(".chip[data-tip-resource]") === leavingChip) {
+          return;
+        }
+        scheduleHideTip();
+      },
+      true
+    );
 
     function readScanClickPref() {
       try {
@@ -275,6 +472,7 @@
     async function recordOverlayScan(resource) {
       if (!resource || scanBusy[resource]) return;
       scanBusy[resource] = true;
+      hideTip();
       var safeRes = String(resource).replace(/\\/g, "\\\\").replace(/"/g, '\\"');
       var btn = document.querySelector('.scan-hit[data-resource="' + safeRes + '"]');
       if (btn) btn.classList.add("busy");
@@ -348,6 +546,7 @@
         if (!keys.length) {
           list.className = "empty";
           list.innerHTML = "No active requirements";
+          hideTip();
           return;
         }
         list.className = "";
@@ -368,31 +567,37 @@
             ? d.signatures
             : (base != null ? [base, base * 2, base * 3, base * 4, base * 5] : []);
           const sigNums = clusterList.join(" · ");
+          const clusterTip = clusterList
+            .map((v, i) => "x" + (i + 1) + "=" + v)
+            .join("  ");
           const sumBit = total !== n
             ? ` <span class="sum">(${total} total)</span>`
             : "";
           const missionBit = missionCover
-            ? ` <span class="missions" title="Active missions that still need ${escapeHtml(k)}">· ${missionCover} mission${missionCover === 1 ? "" : "s"}</span>`
+            ? ` <span class="missions">· ${missionCover} mission${missionCover === 1 ? "" : "s"}</span>`
             : "";
           const done = n === 0;
           const hit =
             `<button type="button" class="scan-hit" data-resource="${escapeHtml(k)}" ` +
-            `title="Record 1 shared ${escapeHtml(k)} scan across ${missionCover || "all"} mission(s)"` +
             (done ? " disabled" : "") +
             ` aria-label="Record one shared ${escapeHtml(k)} scan"></button>`;
           const label = sigNums
             ? `${escapeHtml(k)} <span class="count ${done ? "zero" : ""}">${n}</span>${missionBit}${sumBit} <span class="sig">(${sigNums})</span>`
             : `${escapeHtml(k)} <span class="count ${done ? "zero" : ""}">${n}</span>${missionBit}${sumBit}`;
-          const tip = `Scans needed (shared max): ${n}` +
-            (missionCover ? ` · Covers ${missionCover} mission${missionCover === 1 ? "" : "s"}` : "") +
-            (total !== n ? ` · Sum across missions: ${total}` : "") +
-            (clusterList.length ? " · " + clusterList.map((v, i) => "x" + (i + 1) + "=" + v).join("  ") : "") +
-            (scanClickEnabled ? " · Click circle = 1 shared scan on every active mission that still needs this" : "");
-          return `<div class="chip ${done ? "done" : ""}" title="${escapeHtml(tip)}">${hit}${label}</div>`;
+          return (
+            `<div class="chip ${done ? "done" : ""}" ` +
+            `data-tip-resource="${escapeHtml(k)}" ` +
+            `data-tip-shared="${n}" ` +
+            `data-tip-missions="${missionCover}" ` +
+            `data-tip-sum="${total}" ` +
+            `data-tip-clusters="${escapeHtml(clusterTip)}">` +
+            `${hit}${label}</div>`
+          );
         }).join("");
       } catch (e) {
         document.getElementById("list").innerHTML =
           '<div class="empty">API offline</div>';
+        hideTip();
       }
     }
 
