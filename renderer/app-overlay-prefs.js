@@ -1,4 +1,4 @@
-/* Overlay interact toggle + appearance prefs */
+/* Overlay interact toggle + appearance prefs (loaded after app.js core if split; currently inlined into app.js) */
 
 function isOverlayInteractOn() {
   try {
@@ -31,9 +31,7 @@ async function applyOverlayInteract(on) {
       await window.electronAPI.overlayClickThrough(!on);
     } catch (_) {}
   }
-  if (typeof toast === "function") {
-    toast(on ? "Overlay: click to scan & resize ON" : "Overlay: game receives clicks");
-  }
+  toast(on ? "Overlay: click to scan & resize ON" : "Overlay: game receives clicks");
 }
 
 async function onOverlayInteractToggle(chk) {
@@ -52,6 +50,7 @@ function initOverlayInteract() {
   }
 }
 
+/* Font size delta (px) and family for overlay */
 var OVERLAY_FONT_DELTA_MIN = -6;
 var OVERLAY_FONT_DELTA_MAX = 12;
 
@@ -77,12 +76,12 @@ function setOverlayFontDelta(n) {
 
 function changeOverlayFontSize(delta) {
   var n = setOverlayFontDelta(getOverlayFontDelta() + (delta | 0));
-  if (typeof toast === "function") toast("Overlay font size " + (n > 0 ? "+" : "") + n + "px");
+  toast("Overlay font size " + (n > 0 ? "+" : "") + n + "px");
 }
 
 function resetOverlayFontSize() {
   setOverlayFontDelta(0);
-  if (typeof toast === "function") toast("Overlay font size reset");
+  toast("Overlay font size reset");
 }
 
 function getOverlayFontFamily() {
@@ -98,7 +97,7 @@ function onOverlayFontFamilyChange(sel) {
   try {
     localStorage.setItem("sc_overlay_font_family", v);
   } catch (_) {}
-  if (typeof toast === "function") toast("Overlay font updated");
+  toast("Overlay font updated");
 }
 
 function initOverlayAppearance() {
@@ -118,6 +117,7 @@ function initOverlayAppearance() {
   }
 }
 
+// Back-compat
 async function onOverlayModeChange() {
   var chk = document.getElementById("chk-overlay-interact");
   await applyOverlayInteract(chk ? chk.checked : isOverlayInteractOn());
@@ -129,6 +129,7 @@ async function onOverlayScanClickToggle(chk) {
   await applyOverlayInteract(!!(chk && chk.checked));
 }
 
+
 window.onOverlayInteractToggle = onOverlayInteractToggle;
 window.changeOverlayFontSize = changeOverlayFontSize;
 window.resetOverlayFontSize = resetOverlayFontSize;
@@ -136,6 +137,3 @@ window.onOverlayFontFamilyChange = onOverlayFontFamilyChange;
 window.initOverlayInteract = initOverlayInteract;
 window.initOverlayAppearance = initOverlayAppearance;
 window.applyOverlayInteract = applyOverlayInteract;
-window.onOverlayModeChange = onOverlayModeChange;
-window.onOverlayDragCheckbox = onOverlayDragCheckbox;
-window.onOverlayScanClickToggle = onOverlayScanClickToggle;
