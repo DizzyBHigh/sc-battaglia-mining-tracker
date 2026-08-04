@@ -97,6 +97,12 @@
       font-size: 0.85em;
       color: #8b949e;
     }
+    .chip .missions {
+      font-weight: 600;
+      font-size: 0.85em;
+      color: #a371f7;
+      white-space: nowrap;
+    }
     .chip .sig {
       font-weight: 600;
       font-variant-numeric: tabular-nums;
@@ -266,10 +272,6 @@
       }
     }
 
-    /**
-     * Same shared /api/scan path as the main app Record Scan button:
-     * applies +1 to every active mining/scan mission that still needs this resource.
-     */
     async function recordOverlayScan(resource) {
       if (!resource || scanBusy[resource]) return;
       scanBusy[resource] = true;
@@ -341,6 +343,7 @@
         const list = document.getElementById("list");
         const rem = s.remaining_shared || s.remaining_totals || {};
         const sumMap = s.remaining_sum || {};
+        const byResMissions = s.remaining_mission_by_resource || {};
         const keys = Object.keys(rem).sort();
         if (!keys.length) {
           list.className = "empty";
@@ -354,6 +357,12 @@
           const d = detailed[k] || {};
           const n = d.shared != null ? d.shared : rem[k];
           const total = d.sum != null ? d.sum : (sumMap[k] != null ? sumMap[k] : n);
+          const missionCover =
+            d.missions != null
+              ? d.missions
+              : byResMissions[k] != null
+                ? byResMissions[k]
+                : 0;
           const base = d.signature != null ? d.signature : sigMap[k];
           let clusterList = Array.isArray(d.signatures) && d.signatures.length
             ? d.signatures
@@ -362,16 +371,20 @@
           const sumBit = total !== n
             ? ` <span class="sum">(${total} total)</span>`
             : "";
+          const missionBit = missionCover
+            ? ` <span class="missions" title="Active missions that still need ${escapeHtml(k)}">· ${missionCover} mission${missionCover === 1 ? "" : "s"}</span>`
+            : "";
           const done = n === 0;
           const hit =
             `<button type="button" class="scan-hit" data-resource="${escapeHtml(k)}" ` +
-            `title="Record 1 shared ${escapeHtml(k)} scan across all active missions"` +
+            `title="Record 1 shared ${escapeHtml(k)} scan across ${missionCover || "all"} mission(s)"` +
             (done ? " disabled" : "") +
             ` aria-label="Record one shared ${escapeHtml(k)} scan"></button>`;
           const label = sigNums
-            ? `${escapeHtml(k)} <span class="count ${done ? "zero" : ""}">${n}</span>${sumBit} <span class="sig">(${sigNums})</span>`
-            : `${escapeHtml(k)} <span class="count ${done ? "zero" : ""}">${n}</span>${sumBit}`;
-          const tip = `Scans needed (shared): ${n}` +
+            ? `${escapeHtml(k)} <span class="count ${done ? "zero" : ""}">${n}</span>${missionBit}${sumBit} <span class="sig">(${sigNums})</span>`
+            : `${escapeHtml(k)} <span class="count ${done ? "zero" : ""}">${n}</span>${missionBit}${sumBit}`;
+          const tip = `Scans needed (shared max): ${n}` +
+            (missionCover ? ` · Covers ${missionCover} mission${missionCover === 1 ? "" : "s"}` : "") +
             (total !== n ? ` · Sum across missions: ${total}` : "") +
             (clusterList.length ? " · " + clusterList.map((v, i) => "x" + (i + 1) + "=" + v).join("  ") : "") +
             (scanClickEnabled ? " · Click circle = 1 shared scan on every active mission that still needs this" : "");
