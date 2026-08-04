@@ -96,6 +96,106 @@ function normalizeResourceList(list) {
   return out.length ? out : FALLBACK_RESOURCES.slice();
 }
 
+/* ---------- Collapsible sections ---------- */
+function sectionStorageKey(id) {
+  return "sc_section_collapsed_" + id;
+}
+
+function isSectionCollapsed(id) {
+  try {
+    return localStorage.getItem(sectionStorageKey(id)) === "1";
+  } catch (_) {
+    return false;
+  }
+}
+
+function setSectionCollapsed(id, collapsed) {
+  try {
+    localStorage.setItem(sectionStorageKey(id), collapsed ? "1" : "0");
+  } catch (_) {}
+  var card = document.querySelector('.card[data-section="' + id + '"]');
+  if (!card) return;
+  card.classList.toggle("collapsed", !!collapsed);
+  var btn = card.querySelector('[data-collapse="' + id + '"]');
+  if (btn) btn.textContent = collapsed ? "Show" : "Hide";
+}
+
+function toggleSection(id) {
+  setSectionCollapsed(id, !isSectionCollapsed(id));
+}
+
+function initCollapsibleSections() {
+  document.querySelectorAll(".card[data-section]").forEach(function (card) {
+    var id = card.getAttribute("data-section");
+    if (!id) return;
+    setSectionCollapsed(id, isSectionCollapsed(id));
+  });
+}
+
+/* ---------- Overlay mode (replaces separate drag / scan-click checkboxes) ---------- */
+function getOverlayMode() {
+  try {
+    var m = localStorage.getItem("sc_overlay_mode");
+    if (m === "passthrough" || m === "drag" || m === "scan") return m;
+    // Migrate from older prefs
+    if (localStorage.getItem("sc_overlay_scan_click") === "1") return "scan";
+  } catch (_) {}
+  return "drag";
+}
+
+function setOverlayModeLocal(mode) {
+  try {
+    localStorage.setItem("sc_overlay_mode", mode);
+    localStorage.setItem("sc_overlay_scan_click", mode === "scan" ? "1" : "0");
+  } catch (_) {}
+}
+
+async function applyOverlayMode(mode) {
+  if (mode !== "passthrough" && mode !== "drag" && mode !== "scan") mode = "drag";
+  setOverlayModeLocal(mode);
+  var sel = document.getElementById("overlay-mode");
+  if (sel) sel.value = mode;
+
+  // click-through true = mouse goes to the game (cannot drag or click circles)
+  var clickThrough = mode === "passthrough";
+  if (window.electronAPI && window.electronAPI.overlayClickThrough) {
+    try {
+      await window.electronAPI.overlayClickThrough(clickThrough);
+    } catch (_) {}
+  }
+
+  if (mode === "passthrough") {
+    toast("Overlay mode: game receives clicks");
+  } else if (mode === "drag") {
+    toast("Overlay mode: drag the bar");
+  } else {
+    toast("Overlay mode: click circles to record scans");
+  }
+}
+
+async function onOverlayModeChange(sel) {
+  var mode = (sel && sel.value) || "drag";
+  await applyOverlayMode(mode);
+}
+
+function initOverlayMode() {
+  var mode = getOverlayMode();
+  var sel = document.getElementById("overlay-mode");
+  if (sel) sel.value = mode;
+  setOverlayModeLocal(mode);
+  if (window.electronAPI && window.electronAPI.overlayClickThrough) {
+    window.electronAPI.overlayClickThrough(mode === "passthrough").catch(function () {});
+  }
+}
+
+// Back-compat shims if anything still calls the old handlers
+async function onOverlayDragCheckbox(chk) {
+  await applyOverlayMode(chk && chk.checked ? "drag" : "passthrough");
+}
+async function onOverlayScanClickToggle(chk) {
+  await applyOverlayMode(chk && chk.checked ? "scan" : "drag");
+}
+
 async function loadStats() {
   var r = await fetch("/api/stats");
   var s = await r.json();
@@ -642,58 +742,6 @@ async function toggleOverlay() {
   if (btn) btn.textContent = vis ? "Overlay OK" : "Overlay";
 }
 
-async function onOverlayDragCheckbox(chk) {
-  if (!window.electronAPI || !window.electronAPI.overlayClickThrough) return;
-  var allowDrag = !!(chk && chk.checked);
-  // click-through true = clicks pass to game (cannot hit overlay buttons)
-  await window.electronAPI.overlayClickThrough(!allowDrag);
-  if (!allowDrag) {
-    var scanChk = document.getElementById("chk-overlay-scan-click");
-    if (scanChk && scanChk.checked) {
-      scanChk.checked = false;
-      try { localStorage.setItem("sc_overlay_scan_click", "0"); } catch (_) {}
-      toast("Overlay drag OFF — scan-click disabled (overlay must receive clicks)");
-      return;
-    }
-  }
-  toast(allowDrag ? "Overlay drag ON" : "Overlay drag OFF");
-}
-
-async function onOverlayScanClickToggle(chk) {
-  var on = !!(chk && chk.checked);
-  try {
-    localStorage.setItem("sc_overlay_scan_click", on ? "1" : "0");
-  } catch (_) {}
-  if (on) {
-    // Overlay must receive mouse events so the hit circle is clickable
-    var drag = document.getElementById("chk-overlay-drag");
-    if (drag && !drag.checked) {
-      drag.checked = true;
-    }
-    if (window.electronAPI && window.electronAPI.overlayClickThrough) {
-      await window.electronAPI.overlayClickThrough(false);
-    }
-    toast("Overlay scan-click ON — click the blue circle next to a resource");
-  } else {
-    toast("Overlay scan-click OFF");
-  }
-}
-
-function initOverlayScanClickPref() {
-  var chk = document.getElementById("chk-overlay-scan-click");
-  if (!chk) return;
-  var on = false;
-  try {
-    on = localStorage.getItem("sc_overlay_scan_click") === "1";
-  } catch (_) {}
-  chk.checked = on;
-  if (on && window.electronAPI && window.electronAPI.overlayClickThrough) {
-    var drag = document.getElementById("chk-overlay-drag");
-    if (drag) drag.checked = true;
-    window.electronAPI.overlayClickThrough(false).catch(function () {});
-  }
-}
-
 async function autoOcrForMission(missionId, force) {
   if (force === undefined) force = false;
   if (!missionId) return;
@@ -769,8 +817,10 @@ async function autoOcrForMission(missionId, force) {
 window.isMiningScanTitle = isMiningScanTitle;
 window.pickLog = pickLog;
 window.toggleOverlay = toggleOverlay;
+window.onOverlayModeChange = onOverlayModeChange;
 window.onOverlayDragCheckbox = onOverlayDragCheckbox;
 window.onOverlayScanClickToggle = onOverlayScanClickToggle;
+window.toggleSection = toggleSection;
 window.setFilter = setFilter;
 window.loadMissions = loadMissions;
 window.loadStats = loadStats;
@@ -790,8 +840,9 @@ window.removeRequirementFromMission = removeRequirementFromMission;
 window.createManualMission = createManualMission;
 
 initResources().then(function () {
+  initCollapsibleSections();
+  initOverlayMode();
   loadMissions();
-  initOverlayScanClickPref();
 });
 setInterval(loadMissions, 8000);
 setInterval(loadActedLog, 4000);
