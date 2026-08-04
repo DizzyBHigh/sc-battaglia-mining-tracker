@@ -644,8 +644,54 @@ async function toggleOverlay() {
 
 async function onOverlayDragCheckbox(chk) {
   if (!window.electronAPI || !window.electronAPI.overlayClickThrough) return;
-  await window.electronAPI.overlayClickThrough(!chk.checked);
-  toast(chk.checked ? "Overlay drag ON" : "Overlay drag OFF");
+  var allowDrag = !!(chk && chk.checked);
+  // click-through true = clicks pass to game (cannot hit overlay buttons)
+  await window.electronAPI.overlayClickThrough(!allowDrag);
+  if (!allowDrag) {
+    var scanChk = document.getElementById("chk-overlay-scan-click");
+    if (scanChk && scanChk.checked) {
+      scanChk.checked = false;
+      try { localStorage.setItem("sc_overlay_scan_click", "0"); } catch (_) {}
+      toast("Overlay drag OFF — scan-click disabled (overlay must receive clicks)");
+      return;
+    }
+  }
+  toast(allowDrag ? "Overlay drag ON" : "Overlay drag OFF");
+}
+
+async function onOverlayScanClickToggle(chk) {
+  var on = !!(chk && chk.checked);
+  try {
+    localStorage.setItem("sc_overlay_scan_click", on ? "1" : "0");
+  } catch (_) {}
+  if (on) {
+    // Overlay must receive mouse events so the hit circle is clickable
+    var drag = document.getElementById("chk-overlay-drag");
+    if (drag && !drag.checked) {
+      drag.checked = true;
+    }
+    if (window.electronAPI && window.electronAPI.overlayClickThrough) {
+      await window.electronAPI.overlayClickThrough(false);
+    }
+    toast("Overlay scan-click ON — click the blue circle next to a resource");
+  } else {
+    toast("Overlay scan-click OFF");
+  }
+}
+
+function initOverlayScanClickPref() {
+  var chk = document.getElementById("chk-overlay-scan-click");
+  if (!chk) return;
+  var on = false;
+  try {
+    on = localStorage.getItem("sc_overlay_scan_click") === "1";
+  } catch (_) {}
+  chk.checked = on;
+  if (on && window.electronAPI && window.electronAPI.overlayClickThrough) {
+    var drag = document.getElementById("chk-overlay-drag");
+    if (drag) drag.checked = true;
+    window.electronAPI.overlayClickThrough(false).catch(function () {});
+  }
 }
 
 async function autoOcrForMission(missionId, force) {
@@ -724,6 +770,7 @@ window.isMiningScanTitle = isMiningScanTitle;
 window.pickLog = pickLog;
 window.toggleOverlay = toggleOverlay;
 window.onOverlayDragCheckbox = onOverlayDragCheckbox;
+window.onOverlayScanClickToggle = onOverlayScanClickToggle;
 window.setFilter = setFilter;
 window.loadMissions = loadMissions;
 window.loadStats = loadStats;
@@ -742,6 +789,9 @@ window.addRequirementToMission = addRequirementToMission;
 window.removeRequirementFromMission = removeRequirementFromMission;
 window.createManualMission = createManualMission;
 
-initResources().then(function () { loadMissions(); });
+initResources().then(function () {
+  loadMissions();
+  initOverlayScanClickPref();
+});
 setInterval(loadMissions, 8000);
 setInterval(loadActedLog, 4000);
