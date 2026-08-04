@@ -1,1 +1,632 @@
-SEE_FILE
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <title>SC Overlay</title>
+  <style>
+    html, body {
+      margin: 0; padding: 0;
+      background: transparent;
+      overflow: hidden;
+      font-family: "Segoe UI", system-ui, sans-serif;
+      user-select: none;
+      height: 100%;
+    }
+    #bar {
+      display: flex;
+      flex-direction: column;
+      justify-content: flex-start;
+      align-items: stretch;
+      height: 100%;
+      box-sizing: border-box;
+      padding: 0.35rem 0.75rem;
+      background: rgba(13, 17, 23, 0.88);
+      border: 1px solid rgba(88, 166, 255, 0.45);
+      border-radius: 10px;
+      backdrop-filter: blur(8px);
+      -webkit-app-region: drag;
+      cursor: move;
+      position: relative;
+    }
+    #top-row {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 0.75rem;
+      margin-bottom: 0.15rem;
+      -webkit-app-region: drag;
+    }
+    #status {
+      font-size: clamp(0.65rem, 1.5vw, 0.8rem);
+      color: #8b949e;
+      white-space: nowrap;
+      overflow: hidden;
+      text-overflow: ellipsis;
+      flex: 1;
+      min-width: 0;
+      transition: opacity 0.25s ease;
+    }
+    #status.ocr { color: #d29922; }
+    #status.ocr_done { color: #3fb950; }
+    #status.error { color: #f85149; }
+    #status.scan_ready { color: #d29922; }
+    #timer {
+      display: none;
+      font-family: ui-monospace, Consolas, monospace;
+      font-size: clamp(0.75rem, 2vw, 0.95rem);
+      font-weight: 700;
+      font-variant-numeric: tabular-nums;
+      color: #58a6ff;
+      letter-spacing: 0.03em;
+      white-space: nowrap;
+      flex-shrink: 0;
+    }
+    #timer.on { display: inline-block; }
+    #timer.running { color: #3fb950; }
+    #timer.paused { color: #d29922; }
+    #list {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 0.35rem 0.5rem;
+      align-items: center;
+      -webkit-app-region: drag;
+    }
+    .chip {
+      display: inline-flex;
+      flex-wrap: wrap;
+      align-items: center;
+      gap: 0.25rem 0.4rem;
+      padding: 0.2rem 0.55rem 0.2rem 0.35rem;
+      border-radius: 999px;
+      background: rgba(22, 27, 34, 0.95);
+      border: 1px solid #30363d;
+      font-size: clamp(0.7rem, 1.8vw, 0.9rem);
+      color: #e6edf3;
+      max-width: 100%;
+      font-weight: 600;
+      -webkit-app-region: drag;
+    }
+    .chip.done { opacity: 0.55; border-color: #238636; }
+    .chip .count {
+      font-weight: 800;
+      font-variant-numeric: tabular-nums;
+      color: #d29922;
+    }
+    .chip .count.zero { color: #3fb950; }
+    .chip .sum {
+      font-weight: 500;
+      font-size: 0.85em;
+      color: #8b949e;
+    }
+    .chip .missions {
+      font-weight: 600;
+      font-size: 0.85em;
+      color: #a371f7;
+      white-space: nowrap;
+    }
+    .chip .sig {
+      font-weight: 600;
+      font-variant-numeric: tabular-nums;
+      color: #58a6ff;
+      white-space: nowrap;
+      font-size: clamp(0.65rem, 1.6vw, 0.85rem);
+    }
+    .scan-hit {
+      display: none;
+      width: 1.05rem;
+      height: 1.05rem;
+      min-width: 1.05rem;
+      min-height: 1.05rem;
+      padding: 0;
+      margin: 0;
+      border-radius: 50%;
+      border: 2px solid #58a6ff;
+      background: rgba(88, 166, 255, 0.25);
+      box-shadow: inset 0 0 0 2px rgba(13, 17, 23, 0.85);
+      cursor: pointer;
+      flex-shrink: 0;
+      -webkit-app-region: no-drag;
+      position: relative;
+      z-index: 2;
+    }
+    body.scan-click .scan-hit {
+      display: inline-block;
+    }
+    .scan-hit:hover {
+      background: rgba(88, 166, 255, 0.55);
+      border-color: #79b8ff;
+    }
+    .scan-hit:active {
+      background: #3fb950;
+      border-color: #3fb950;
+      transform: scale(0.92);
+    }
+    .scan-hit.busy {
+      opacity: 0.5;
+      pointer-events: none;
+    }
+    .scan-hit:disabled {
+      opacity: 0.35;
+      cursor: default;
+      border-color: #30363d;
+      background: rgba(48, 54, 61, 0.4);
+    }
+    .empty { color: #8b949e; font-size: 0.8rem; }
+    .meta {
+      font-size: clamp(0.6rem, 1.3vw, 0.75rem);
+      color: #8b949e;
+      margin-bottom: 0.15rem;
+      -webkit-app-region: drag;
+    }
+
+    #tip {
+      position: fixed;
+      z-index: 1;
+      padding: 0.35rem 0.55rem;
+      border-radius: 6px;
+      background: rgba(22, 27, 34, 0.96);
+      border: 1px solid rgba(88, 166, 255, 0.55);
+      box-shadow: 0 6px 18px rgba(0, 0, 0, 0.4);
+      color: #e6edf3;
+      font-size: 0.72rem;
+      font-weight: 600;
+      line-height: 1.25;
+      letter-spacing: 0.01em;
+      pointer-events: none;
+      opacity: 0;
+      transform: translateY(3px);
+      transition: opacity 0.12s ease, transform 0.12s ease, border-color 0.12s ease, color 0.12s ease;
+      -webkit-app-region: no-drag;
+      white-space: nowrap;
+    }
+    #tip.visible {
+      opacity: 1;
+      transform: translateY(0);
+    }
+    #tip.success {
+      border-color: rgba(63, 185, 80, 0.75);
+      color: #3fb950;
+    }
+    #tip.error {
+      border-color: rgba(248, 81, 73, 0.75);
+      color: #f85149;
+    }
+  </style>
+</head>
+<body>
+  <div id="bar">
+    <div id="top-row">
+      <div id="status">Ready</div>
+      <div id="timer">00:00</div>
+    </div>
+    <div class="meta" id="meta"></div>
+    <div id="list" class="empty">No active requirements</div>
+  </div>
+  <div id="tip" role="tooltip" aria-hidden="true"></div>
+  <script>
+    var STATUS_TTL_MS = 5000;
+    var lastStatusKey = "";
+    var clearTimer = null;
+    var scanClickEnabled = false;
+    var scanBusy = {};
+    var tipEl = null;
+    var tipHideTimer = null;
+    var tipLockedUntil = 0;
+    var audioCtx = null;
+
+    function escapeHtml(s) {
+      return String(s)
+        .replace(/&/g, "&" + "amp;")
+        .replace(/</g, "&" + "lt;")
+        .replace(/>/g, "&" + "gt;")
+        .replace(/"/g, "&" + "quot;");
+    }
+
+    function formatMs(ms) {
+      if (ms < 0) ms = 0;
+      var totalSec = Math.floor(ms / 1000);
+      var h = Math.floor(totalSec / 3600);
+      var m = Math.floor((totalSec % 3600) / 60);
+      var s = totalSec % 60;
+      function pad(n) {
+        return n < 10 ? "0" + n : String(n);
+      }
+      if (h > 0) return pad(h) + ":" + pad(m) + ":" + pad(s);
+      return pad(m) + ":" + pad(s);
+    }
+
+    function getAudioCtx() {
+      if (audioCtx) return audioCtx;
+      try {
+        var AC = window.AudioContext || window.webkitAudioContext;
+        if (!AC) return null;
+        audioCtx = new AC();
+        return audioCtx;
+      } catch (_) {
+        return null;
+      }
+    }
+
+    /** Short UI click — no external sound files needed. */
+    function playClickSound() {
+      try {
+        var ctx = getAudioCtx();
+        if (!ctx) return;
+        if (ctx.state === "suspended") ctx.resume();
+        var t0 = ctx.currentTime;
+        var osc = ctx.createOscillator();
+        var gain = ctx.createGain();
+        osc.type = "square";
+        osc.frequency.setValueAtTime(880, t0);
+        osc.frequency.exponentialRampToValueAtTime(440, t0 + 0.04);
+        gain.gain.setValueAtTime(0.0001, t0);
+        gain.gain.exponentialRampToValueAtTime(0.12, t0 + 0.005);
+        gain.gain.exponentialRampToValueAtTime(0.0001, t0 + 0.06);
+        osc.connect(gain);
+        gain.connect(ctx.destination);
+        osc.start(t0);
+        osc.stop(t0 + 0.07);
+      } catch (_) {}
+    }
+
+    function getTip() {
+      if (!tipEl) tipEl = document.getElementById("tip");
+      return tipEl;
+    }
+
+    function hideTip() {
+      var el = getTip();
+      if (!el) return;
+      el.classList.remove("visible", "success", "error");
+      el.setAttribute("aria-hidden", "true");
+    }
+
+    /** Place tip next to the circle only — never overlapping it. */
+    function showCircleTip(circle, text, variant) {
+      var el = getTip();
+      if (!el || !circle || !text) return;
+      if (tipHideTimer) {
+        clearTimeout(tipHideTimer);
+        tipHideTimer = null;
+      }
+      el.textContent = text;
+      el.classList.remove("success", "error");
+      if (variant === "success") el.classList.add("success");
+      if (variant === "error") el.classList.add("error");
+      el.classList.add("visible");
+      el.setAttribute("aria-hidden", "false");
+
+      var rect = circle.getBoundingClientRect();
+      var tipW = el.offsetWidth || 140;
+      var tipH = el.offsetHeight || 24;
+      var pad = 6;
+      var gap = 8;
+
+      var candidates = [
+        { left: rect.right + gap, top: rect.top + (rect.height - tipH) / 2 },
+        { left: rect.left + (rect.width - tipW) / 2, top: rect.top - tipH - gap },
+        { left: rect.left - tipW - gap, top: rect.top + (rect.height - tipH) / 2 },
+        { left: rect.left + (rect.width - tipW) / 2, top: rect.bottom + gap },
+      ];
+
+      var chosen = null;
+      for (var i = 0; i < candidates.length; i++) {
+        var c = candidates[i];
+        var L = Math.max(pad, Math.min(c.left, window.innerWidth - tipW - pad));
+        var T = Math.max(pad, Math.min(c.top, window.innerHeight - tipH - pad));
+        var tipBox = { left: L, top: T, right: L + tipW, bottom: T + tipH };
+        var avoid = {
+          left: rect.left - 2,
+          top: rect.top - 2,
+          right: rect.right + 2,
+          bottom: rect.bottom + 2,
+        };
+        var overlaps = !(
+          tipBox.right <= avoid.left ||
+          tipBox.left >= avoid.right ||
+          tipBox.bottom <= avoid.top ||
+          tipBox.top >= avoid.bottom
+        );
+        if (!overlaps) {
+          chosen = { left: L, top: T };
+          break;
+        }
+      }
+      if (!chosen) {
+        chosen = {
+          left: Math.max(pad, Math.min(rect.right + gap, window.innerWidth - tipW - pad)),
+          top: Math.max(pad, Math.min(rect.top, window.innerHeight - tipH - pad)),
+        };
+      }
+
+      el.style.left = chosen.left + "px";
+      el.style.top = chosen.top + "px";
+    }
+
+    function scheduleHideTip(delayMs) {
+      if (tipHideTimer) clearTimeout(tipHideTimer);
+      tipHideTimer = setTimeout(function () {
+        tipHideTimer = null;
+        hideTip();
+      }, delayMs == null ? 80 : delayMs);
+    }
+
+    document.addEventListener(
+      "mouseover",
+      function (ev) {
+        var t = ev.target;
+        if (!t || !t.classList || !t.classList.contains("scan-hit")) return;
+        if (t.disabled) return;
+        if (Date.now() < tipLockedUntil) return;
+        var res = t.getAttribute("data-resource") || "resource";
+        showCircleTip(t, "Click to record 1× " + res + " scan");
+      },
+      true
+    );
+
+    document.addEventListener(
+      "mouseout",
+      function (ev) {
+        var t = ev.target;
+        if (!t || !t.classList || !t.classList.contains("scan-hit")) return;
+        if (Date.now() < tipLockedUntil) return;
+        scheduleHideTip();
+      },
+      true
+    );
+
+    function readScanClickPref() {
+      try {
+        return localStorage.getItem("sc_overlay_scan_click") === "1";
+      } catch (_) {
+        return false;
+      }
+    }
+
+    function applyScanClickMode() {
+      scanClickEnabled = readScanClickPref();
+      document.body.classList.toggle("scan-click", scanClickEnabled);
+      if (!scanClickEnabled) hideTip();
+    }
+
+    function showReady() {
+      var st = document.getElementById("status");
+      if (!st) return;
+      st.textContent = "Ready";
+      st.className = "";
+      lastStatusKey = "Ready|idle";
+    }
+
+    function applyStatus(message, phase, updatedAt) {
+      var st = document.getElementById("status");
+      if (!st) return;
+      var msg = message || "Ready";
+      var ph = phase || "";
+      var key = msg + "|" + ph + "|" + (updatedAt || "");
+
+      if (!msg || msg === "Ready" || ph === "idle") {
+        if (clearTimer) { clearTimeout(clearTimer); clearTimer = null; }
+        st.textContent = msg || "Ready";
+        st.className = "";
+        lastStatusKey = key;
+        return;
+      }
+
+      if (key !== lastStatusKey) {
+        lastStatusKey = key;
+        st.textContent = msg;
+        st.className = ph;
+        if (clearTimer) clearTimeout(clearTimer);
+        clearTimer = setTimeout(function () {
+          clearTimer = null;
+          showReady();
+        }, STATUS_TTL_MS);
+      }
+    }
+
+    function flashStatus(msg, phase) {
+      applyStatus(msg, phase || "ocr_done", String(Date.now()));
+    }
+
+    function refreshTimer() {
+      var el = document.getElementById("timer");
+      if (!el) return;
+      try {
+        var raw = localStorage.getItem("sc_timer_state");
+        if (!raw) {
+          el.className = "";
+          return;
+        }
+        var st = JSON.parse(raw);
+        if (!st || !st.showOnOverlay) {
+          el.className = "";
+          return;
+        }
+        var ms = st.accumulated || 0;
+        if (st.running && st.startedAt) {
+          ms += Date.now() - st.startedAt;
+        }
+        el.textContent = formatMs(ms);
+        el.className = "on" + (st.running ? " running" : ms > 0 ? " paused" : "");
+      } catch (_) {
+        el.className = "";
+      }
+    }
+
+    async function recordOverlayScan(resource, circleEl) {
+      if (!resource || scanBusy[resource]) return;
+      scanBusy[resource] = true;
+      playClickSound();
+
+      var btn = circleEl;
+      if (!btn) {
+        var safeRes = String(resource).replace(/\\/g, "\\\\").replace(/"/g, '\\"');
+        btn = document.querySelector('.scan-hit[data-resource="' + safeRes + '"]');
+      }
+      if (btn) {
+        btn.classList.add("busy");
+        showCircleTip(btn, "Recording 1× " + resource + "…");
+      }
+
+      try {
+        var r = await fetch("/api/scan", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            resource: resource,
+            count: 1,
+            note: "overlay-click shared",
+          }),
+        });
+        var data = await r.json();
+        if (data.error) {
+          flashStatus("Scan failed: " + data.error, "error");
+          if (btn) {
+            showCircleTip(btn, "Failed to record scan", "error");
+            tipLockedUntil = Date.now() + 1800;
+            scheduleHideTip(1800);
+          }
+        } else {
+          var applied = data.applied || {};
+          var n = Object.keys(applied).length;
+          var completed = (data.newly_completed || []).length;
+          var msg =
+            "Shared 1× " +
+            resource +
+            (n
+              ? " across " + n + " mission" + (n === 1 ? "" : "s")
+              : " (no active mission needed it)");
+          if (completed) msg += " · " + completed + " completed";
+          flashStatus(msg, n ? "ocr_done" : "scan_ready");
+
+          var tipMsg =
+            n > 0
+              ? "Scan recorded · " + n + " mission" + (n === 1 ? "" : "s")
+              : "Scan recorded (no mission needed it)";
+          if (completed) tipMsg += " · " + completed + " completed";
+
+          await refresh();
+
+          // After refresh the old button node is gone — find the new one if still present
+          var safe2 = String(resource).replace(/\\/g, "\\\\").replace(/"/g, '\\"');
+          var btn2 = document.querySelector('.scan-hit[data-resource="' + safe2 + '"]');
+          var anchor = btn2 || btn;
+          if (anchor && document.body.contains(anchor)) {
+            showCircleTip(anchor, tipMsg, n > 0 ? "success" : "error");
+          } else {
+            // Resource fully cleared — show tip near list area using last known position
+            var el = getTip();
+            if (el) {
+              el.textContent = tipMsg;
+              el.classList.remove("error");
+              el.classList.add("visible", n > 0 ? "success" : "error");
+              el.setAttribute("aria-hidden", "false");
+            }
+          }
+          tipLockedUntil = Date.now() + 2200;
+          scheduleHideTip(2200);
+          return;
+        }
+        await refresh();
+      } catch (e) {
+        flashStatus("Scan error", "error");
+        if (btn && document.body.contains(btn)) {
+          showCircleTip(btn, "Scan error", "error");
+          tipLockedUntil = Date.now() + 1800;
+          scheduleHideTip(1800);
+        }
+      } finally {
+        scanBusy[resource] = false;
+        if (btn && document.body.contains(btn)) btn.classList.remove("busy");
+      }
+    }
+
+    document.addEventListener("click", function (ev) {
+      var t = ev.target;
+      if (!t || !t.classList || !t.classList.contains("scan-hit")) return;
+      ev.preventDefault();
+      ev.stopPropagation();
+      if (t.disabled) return;
+      var res = t.getAttribute("data-resource");
+      if (res) recordOverlayScan(res, t);
+    });
+
+    async function refresh() {
+      applyScanClickMode();
+      try {
+        const r = await fetch("/api/stats");
+        const s = await r.json();
+        if (s.status) {
+          applyStatus(s.status.message, s.status.phase, s.status.updatedAt);
+        }
+        const missionN = s.remaining_mission_count != null
+          ? s.remaining_mission_count
+          : (s.active_count || 0);
+        const meta = document.getElementById("meta");
+        if (meta) {
+          meta.textContent = missionN
+            ? ("Across " + missionN + " mission" + (missionN === 1 ? "" : "s") + " · shared scans")
+            : "";
+        }
+        const list = document.getElementById("list");
+        const rem = s.remaining_shared || s.remaining_totals || {};
+        const sumMap = s.remaining_sum || {};
+        const byResMissions = s.remaining_mission_by_resource || {};
+        const keys = Object.keys(rem).sort();
+        if (!keys.length) {
+          list.className = "empty";
+          list.innerHTML = "No active requirements";
+          return;
+        }
+        list.className = "";
+        const detailed = s.remaining_detailed || {};
+        const sigMap = s.signatures || {};
+        list.innerHTML = keys.map((k) => {
+          const d = detailed[k] || {};
+          const n = d.shared != null ? d.shared : rem[k];
+          const total = d.sum != null ? d.sum : (sumMap[k] != null ? sumMap[k] : n);
+          const missionCover =
+            d.missions != null
+              ? d.missions
+              : byResMissions[k] != null
+                ? byResMissions[k]
+                : 0;
+          const base = d.signature != null ? d.signature : sigMap[k];
+          let clusterList = Array.isArray(d.signatures) && d.signatures.length
+            ? d.signatures
+            : (base != null ? [base, base * 2, base * 3, base * 4, base * 5] : []);
+          const sigNums = clusterList.join(" · ");
+          const sumBit = total !== n
+            ? ` <span class="sum">(${total} total)</span>`
+            : "";
+          const missionBit = missionCover
+            ? ` <span class="missions">· ${missionCover} mission${missionCover === 1 ? "" : "s"}</span>`
+            : "";
+          const done = n === 0;
+          const hit =
+            `<button type="button" class="scan-hit" data-resource="${escapeHtml(k)}" ` +
+            (done ? " disabled" : "") +
+            ` aria-label="Click to record 1 ${escapeHtml(k)} scan"></button>`;
+          const label = sigNums
+            ? `${escapeHtml(k)} <span class="count ${done ? "zero" : ""}">${n}</span>${missionBit}${sumBit} <span class="sig">(${sigNums})</span>`
+            : `${escapeHtml(k)} <span class="count ${done ? "zero" : ""}">${n}</span>${missionBit}${sumBit}`;
+          return `<div class="chip ${done ? "done" : ""}">${hit}${label}</div>`;
+        }).join("");
+      } catch (e) {
+        document.getElementById("list").innerHTML =
+          '<div class="empty">API offline</div>';
+      }
+    }
+
+    applyScanClickMode();
+    refresh();
+    refreshTimer();
+    setInterval(refresh, 1000);
+    setInterval(refreshTimer, 200);
+    setInterval(applyScanClickMode, 500);
+    window.addEventListener("storage", function (ev) {
+      if (ev.key === "sc_overlay_scan_click") applyScanClickMode();
+    });
+  </script>
+</body>
+</html>
