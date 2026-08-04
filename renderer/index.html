@@ -80,6 +80,9 @@ footer{text-align:center;color:var(--muted);font-size:.75rem;padding:1rem}
     <label style="font-size:.8rem;color:var(--muted);display:inline-flex;align-items:center;gap:.35rem;cursor:pointer" title="When checked, drag the overlay. Uncheck so clicks go to the game.">
       <input type="checkbox" id="chk-overlay-drag" checked onchange="onOverlayDragCheckbox(this)"/>Allow drag overlay
     </label>
+    <label style="font-size:.8rem;color:var(--muted);display:inline-flex;align-items:center;gap:.35rem;cursor:pointer" title="When checked, a circle appears next to each resource on the overlay. Click it to record 1 shared scan. Requires overlay to receive clicks (Allow drag on).">
+      <input type="checkbox" id="chk-overlay-scan-click" onchange="onOverlayScanClickToggle(this)"/>Click overlay to scan
+    </label>
   </div>
   <div id="log-path-bar"><span class="log-label">Log</span><span id="log-path-text">–</span></div>
 </header>
@@ -182,6 +185,7 @@ footer{text-align:center;color:var(--muted);font-size:.75rem;padding:1rem}
     <ol style="font-size:.8rem;color:var(--muted);padding-left:1.1rem">
       <li>Accept missions in-game — the <strong>Session timer</strong> starts automatically from the log.</li>
       <li>Enable <strong>Show timer on overlay</strong> to see elapsed time on the in-game bar.</li>
+      <li>Enable <strong>Click overlay to scan</strong> + <strong>Allow drag overlay</strong>, then click the blue circle next to a resource to record 1 shared scan.</li>
       <li>Pick a <strong>Deposit sound</strong> and volume; Test previews the alert.</li>
       <li>Record Scan applies shared progress across active missions.</li>
     </ol>
