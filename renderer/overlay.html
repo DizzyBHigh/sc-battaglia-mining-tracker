@@ -8,9 +8,10 @@
       margin: 0; padding: 0;
       background: transparent;
       overflow: hidden;
-      font-family: "Segoe UI", system-ui, sans-serif;
+      font-family: var(--overlay-font, "Segoe UI", system-ui, sans-serif);
       user-select: none;
       height: 100%;
+      --font-delta: 0px;
     }
     #bar {
       display: flex;
@@ -37,7 +38,7 @@
       -webkit-app-region: drag;
     }
     #status {
-      font-size: clamp(0.65rem, 1.5vw, 0.8rem);
+      font-size: calc(0.72rem + var(--font-delta));
       color: #8b949e;
       white-space: nowrap;
       overflow: hidden;
@@ -53,7 +54,7 @@
     #timer {
       display: none;
       font-family: ui-monospace, Consolas, monospace;
-      font-size: clamp(0.75rem, 2vw, 0.95rem);
+      font-size: calc(0.85rem + var(--font-delta));
       font-weight: 700;
       font-variant-numeric: tabular-nums;
       color: #58a6ff;
@@ -80,7 +81,7 @@
       border-radius: 999px;
       background: rgba(22, 27, 34, 0.95);
       border: 1px solid #30363d;
-      font-size: clamp(0.7rem, 1.8vw, 0.9rem);
+      font-size: calc(0.8rem + var(--font-delta));
       color: #e6edf3;
       max-width: 100%;
       font-weight: 600;
@@ -109,7 +110,7 @@
       font-variant-numeric: tabular-nums;
       color: #58a6ff;
       white-space: nowrap;
-      font-size: clamp(0.65rem, 1.6vw, 0.85rem);
+      font-size: calc(0.75rem + var(--font-delta));
     }
     .scan-hit {
       display: none;
@@ -151,9 +152,9 @@
       border-color: #30363d;
       background: rgba(48, 54, 61, 0.4);
     }
-    .empty { color: #8b949e; font-size: 0.8rem; }
+    .empty { color: #8b949e; font-size: calc(0.8rem + var(--font-delta)); }
     .meta {
-      font-size: clamp(0.6rem, 1.3vw, 0.75rem);
+      font-size: calc(0.68rem + var(--font-delta));
       color: #8b949e;
       margin-bottom: 0.15rem;
       -webkit-app-region: drag;
@@ -168,7 +169,7 @@
       border: 1px solid rgba(88, 166, 255, 0.55);
       box-shadow: 0 6px 18px rgba(0, 0, 0, 0.4);
       color: #e6edf3;
-      font-size: 0.72rem;
+      font-size: calc(0.72rem + var(--font-delta));
       font-weight: 600;
       line-height: 1.25;
       letter-spacing: 0.01em;
@@ -247,7 +248,6 @@
       }
     }
 
-    /** Short UI click — no external sound files needed. */
     function playClickSound() {
       try {
         var ctx = getAudioCtx();
@@ -281,7 +281,6 @@
       el.setAttribute("aria-hidden", "true");
     }
 
-    /** Place tip next to the circle only — never overlapping it. */
     function showCircleTip(circle, text, variant) {
       var el = getTip();
       if (!el || !circle || !text) return;
@@ -507,14 +506,12 @@
 
           await refresh();
 
-          // After refresh the old button node is gone — find the new one if still present
           var safe2 = String(resource).replace(/\\/g, "\\\\").replace(/"/g, '\\"');
           var btn2 = document.querySelector('.scan-hit[data-resource="' + safe2 + '"]');
           var anchor = btn2 || btn;
           if (anchor && document.body.contains(anchor)) {
             showCircleTip(anchor, tipMsg, n > 0 ? "success" : "error");
           } else {
-            // Resource fully cleared — show tip near list area using last known position
             var el = getTip();
             if (el) {
               el.textContent = tipMsg;
@@ -626,7 +623,11 @@
     setInterval(applyScanClickMode, 500);
     window.addEventListener("storage", function (ev) {
       if (ev.key === "sc_overlay_scan_click") applyScanClickMode();
+      if (ev.key === "sc_overlay_font_delta" || ev.key === "sc_overlay_font_family" || ev.key === "sc_overlay_font_bump") {
+        /* overlay-appearance.js also polls; this is a backup */
+      }
     });
   </script>
+<script src="overlay-appearance.js"></script>
 </body>
 </html>
