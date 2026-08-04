@@ -175,13 +175,21 @@
       pointer-events: none;
       opacity: 0;
       transform: translateY(3px);
-      transition: opacity 0.12s ease, transform 0.12s ease;
+      transition: opacity 0.12s ease, transform 0.12s ease, border-color 0.12s ease, color 0.12s ease;
       -webkit-app-region: no-drag;
       white-space: nowrap;
     }
     #tip.visible {
       opacity: 1;
       transform: translateY(0);
+    }
+    #tip.success {
+      border-color: rgba(63, 185, 80, 0.75);
+      color: #3fb950;
+    }
+    #tip.error {
+      border-color: rgba(248, 81, 73, 0.75);
+      color: #f85149;
     }
   </style>
 </head>
@@ -203,6 +211,8 @@
     var scanBusy = {};
     var tipEl = null;
     var tipHideTimer = null;
+    var tipLockedUntil = 0;
+    var audioCtx = null;
 
     function escapeHtml(s) {
       return String(s)
@@ -225,6 +235,40 @@
       return pad(m) + ":" + pad(s);
     }
 
+    function getAudioCtx() {
+      if (audioCtx) return audioCtx;
+      try {
+        var AC = window.AudioContext || window.webkitAudioContext;
+        if (!AC) return null;
+        audioCtx = new AC();
+        return audioCtx;
+      } catch (_) {
+        return null;
+      }
+    }
+
+    /** Short UI click — no external sound files needed. */
+    function playClickSound() {
+      try {
+        var ctx = getAudioCtx();
+        if (!ctx) return;
+        if (ctx.state === "suspended") ctx.resume();
+        var t0 = ctx.currentTime;
+        var osc = ctx.createOscillator();
+        var gain = ctx.createGain();
+        osc.type = "square";
+        osc.frequency.setValueAtTime(880, t0);
+        osc.frequency.exponentialRampToValueAtTime(440, t0 + 0.04);
+        gain.gain.setValueAtTime(0.0001, t0);
+        gain.gain.exponentialRampToValueAtTime(0.12, t0 + 0.005);
+        gain.gain.exponentialRampToValueAtTime(0.0001, t0 + 0.06);
+        osc.connect(gain);
+        gain.connect(ctx.destination);
+        osc.start(t0);
+        osc.stop(t0 + 0.07);
+      } catch (_) {}
+    }
+
     function getTip() {
       if (!tipEl) tipEl = document.getElementById("tip");
       return tipEl;
@@ -233,12 +277,12 @@
     function hideTip() {
       var el = getTip();
       if (!el) return;
-      el.classList.remove("visible");
+      el.classList.remove("visible", "success", "error");
       el.setAttribute("aria-hidden", "true");
     }
 
     /** Place tip next to the circle only — never overlapping it. */
-    function showCircleTip(circle, text) {
+    function showCircleTip(circle, text, variant) {
       var el = getTip();
       if (!el || !circle || !text) return;
       if (tipHideTimer) {
@@ -246,6 +290,9 @@
         tipHideTimer = null;
       }
       el.textContent = text;
+      el.classList.remove("success", "error");
+      if (variant === "success") el.classList.add("success");
+      if (variant === "error") el.classList.add("error");
       el.classList.add("visible");
       el.setAttribute("aria-hidden", "false");
 
@@ -255,7 +302,6 @@
       var pad = 6;
       var gap = 8;
 
-      // Prefer right of circle, then above, then left, then below
       var candidates = [
         { left: rect.right + gap, top: rect.top + (rect.height - tipH) / 2 },
         { left: rect.left + (rect.width - tipW) / 2, top: rect.top - tipH - gap },
@@ -297,12 +343,12 @@
       el.style.top = chosen.top + "px";
     }
 
-    function scheduleHideTip() {
+    function scheduleHideTip(delayMs) {
       if (tipHideTimer) clearTimeout(tipHideTimer);
       tipHideTimer = setTimeout(function () {
         tipHideTimer = null;
         hideTip();
-      }, 80);
+      }, delayMs == null ? 80 : delayMs);
     }
 
     document.addEventListener(
@@ -311,6 +357,7 @@
         var t = ev.target;
         if (!t || !t.classList || !t.classList.contains("scan-hit")) return;
         if (t.disabled) return;
+        if (Date.now() < tipLockedUntil) return;
         var res = t.getAttribute("data-resource") || "resource";
         showCircleTip(t, "Click to record 1× " + res + " scan");
       },
@@ -322,6 +369,7 @@
       function (ev) {
         var t = ev.target;
         if (!t || !t.classList || !t.classList.contains("scan-hit")) return;
+        if (Date.now() < tipLockedUntil) return;
         scheduleHideTip();
       },
       true
@@ -405,13 +453,21 @@
       }
     }
 
-    async function recordOverlayScan(resource) {
+    async function recordOverlayScan(resource, circleEl) {
       if (!resource || scanBusy[resource]) return;
       scanBusy[resource] = true;
-      hideTip();
-      var safeRes = String(resource).replace(/\\/g, "\\\\").replace(/"/g, '\\"');
-      var btn = document.querySelector('.scan-hit[data-resource="' + safeRes + '"]');
-      if (btn) btn.classList.add("busy");
+      playClickSound();
+
+      var btn = circleEl;
+      if (!btn) {
+        var safeRes = String(resource).replace(/\\/g, "\\\\").replace(/"/g, '\\"');
+        btn = document.querySelector('.scan-hit[data-resource="' + safeRes + '"]');
+      }
+      if (btn) {
+        btn.classList.add("busy");
+        showCircleTip(btn, "Recording 1× " + resource + "…");
+      }
+
       try {
         var r = await fetch("/api/scan", {
           method: "POST",
@@ -425,6 +481,11 @@
         var data = await r.json();
         if (data.error) {
           flashStatus("Scan failed: " + data.error, "error");
+          if (btn) {
+            showCircleTip(btn, "Failed to record scan", "error");
+            tipLockedUntil = Date.now() + 1800;
+            scheduleHideTip(1800);
+          }
         } else {
           var applied = data.applied || {};
           var n = Object.keys(applied).length;
@@ -437,13 +498,46 @@
               : " (no active mission needed it)");
           if (completed) msg += " · " + completed + " completed";
           flashStatus(msg, n ? "ocr_done" : "scan_ready");
+
+          var tipMsg =
+            n > 0
+              ? "Scan recorded · " + n + " mission" + (n === 1 ? "" : "s")
+              : "Scan recorded (no mission needed it)";
+          if (completed) tipMsg += " · " + completed + " completed";
+
+          await refresh();
+
+          // After refresh the old button node is gone — find the new one if still present
+          var safe2 = String(resource).replace(/\\/g, "\\\\").replace(/"/g, '\\"');
+          var btn2 = document.querySelector('.scan-hit[data-resource="' + safe2 + '"]');
+          var anchor = btn2 || btn;
+          if (anchor && document.body.contains(anchor)) {
+            showCircleTip(anchor, tipMsg, n > 0 ? "success" : "error");
+          } else {
+            // Resource fully cleared — show tip near list area using last known position
+            var el = getTip();
+            if (el) {
+              el.textContent = tipMsg;
+              el.classList.remove("error");
+              el.classList.add("visible", n > 0 ? "success" : "error");
+              el.setAttribute("aria-hidden", "false");
+            }
+          }
+          tipLockedUntil = Date.now() + 2200;
+          scheduleHideTip(2200);
+          return;
         }
         await refresh();
       } catch (e) {
         flashStatus("Scan error", "error");
+        if (btn && document.body.contains(btn)) {
+          showCircleTip(btn, "Scan error", "error");
+          tipLockedUntil = Date.now() + 1800;
+          scheduleHideTip(1800);
+        }
       } finally {
         scanBusy[resource] = false;
-        if (btn) btn.classList.remove("busy");
+        if (btn && document.body.contains(btn)) btn.classList.remove("busy");
       }
     }
 
@@ -454,7 +548,7 @@
       ev.stopPropagation();
       if (t.disabled) return;
       var res = t.getAttribute("data-resource");
-      if (res) recordOverlayScan(res);
+      if (res) recordOverlayScan(res, t);
     });
 
     async function refresh() {
@@ -482,7 +576,6 @@
         if (!keys.length) {
           list.className = "empty";
           list.innerHTML = "No active requirements";
-          hideTip();
           return;
         }
         list.className = "";
@@ -522,7 +615,6 @@
       } catch (e) {
         document.getElementById("list").innerHTML =
           '<div class="empty">API offline</div>';
-        hideTip();
       }
     }
 
